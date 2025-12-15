@@ -218,6 +218,7 @@ const Dashboard = ({ user, onLogout, onOpenLegal }: DashboardProps) => {
   
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState('');
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
   
   // États spécifiques pour les modales
   const [promptFormTitle, setPromptFormTitle] = useState('');
@@ -227,7 +228,6 @@ const Dashboard = ({ user, onLogout, onOpenLegal }: DashboardProps) => {
 
   // Etats pour les ressources (Fichier, Texte, Lien)
   const [resFormType, setResFormType] = useState<'file' | 'text' | 'link'>('file');
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [resFormContent, setResFormContent] = useState(''); // Pour le texte ou l'URL
   
   // Etat pour la lecture d'une ressource texte
