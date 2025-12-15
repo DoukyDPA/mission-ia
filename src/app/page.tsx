@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 
 // ==================================================================================
 // ⚠️ INSTRUCTIONS POUR LE DÉPLOIEMENT (PRODUCTION) ⚠️
@@ -12,7 +12,8 @@ import { createClient } from '@supabase/supabase-js';
 import { 
   BookOpen, Sparkles, GitFork, Users, Search, FileText, Video, Download, 
   ThumbsUp, MessageSquare, Copy, Plus, ArrowRight, Menu, X, Send, LogOut, 
-  Lock, Building2, Globe, UploadCloud, UserPlus, Trash2, Filter, Info, ShieldCheck, FileIcon
+  Lock, Building2, Globe, UploadCloud, UserPlus, Trash2, Filter, Info, ShieldCheck, 
+  Link as LinkIcon, AlignLeft, ExternalLink, Eye
 } from 'lucide-react';
 
 // --- CONFIGURATION SUPABASE ---
@@ -24,14 +25,9 @@ const supabaseAnonKey = (typeof process !== 'undefined' && process.env) ? proces
 // ==================================================================================
 
 // OPTION A : MODE APERÇU (Actif par défaut pour la démo)
-// ------------------------------------------------------
-// Commentez ou supprimez cette ligne si vous activez l'Option B
 /* const supabase: any = null; */
 
-
 // OPTION B : MODE PRODUCTION (Vraie connexion)
-// ------------------------------------------------------
-// Décommentez ce bloc UNIQUEMENT si vous avez commenté l'Option A
 
 const supabase = (supabaseUrl && supabaseAnonKey) 
   // @ts-ignore
@@ -44,11 +40,12 @@ const supabase = (supabaseUrl && supabaseAnonKey)
 // --- TYPES ---
 interface Structure { id: string | number; name: string; city: string; }
 interface User { id: string | number; email: string; name: string; role: string; missionLocale: string; avatar: string; }
-interface Resource { id: string | number; title: string; type: string; date: string; size?: string; category: string; access: string; file_url?: string; }
+// Ajout de 'description' pour le contenu texte
+interface Resource { id: string | number; title: string; type: 'file' | 'text' | 'link' | 'pdf' | 'video'; date: string; size?: string; category: string; access: string; file_url?: string; description?: string; }
 interface Prompt { 
   id: string | number; title: string; content: string; author: string; role: string; 
   avatar: string; missionLocale: string; date: string; tags: string[]; 
-  likes: number; forks: number; isFork: boolean; parentId?: string | number | null; 
+  likes: number; forks: number; isFork: boolean; parentId?: string | number | null; parentAuthor?: string;
 }
 
 // --- DONNÉES FICTIVES (FALLBACK) ---
@@ -61,10 +58,12 @@ const MOCK_USERS_LIST: User[] = [
   { id: 2, email: "admin@ia.fr", name: "Admin Système", role: "Admin", missionLocale: "National", avatar: "AD" }
 ];
 const MOCK_RESOURCES: Resource[] = [
-  { id: 1, title: "Guide de démarrage (Mode Démo)", type: "pdf", date: "12/12/2023", category: "Formation", access: "global" }
+  { id: 1, title: "Guide de démarrage (PDF)", type: "file", date: "12/12/2023", category: "Formation", access: "global", file_url: "#" },
+  { id: 2, title: "Outil IA recommandé", type: "link", date: "14/12/2023", category: "Veille", access: "global", file_url: "https://openai.com" },
+  { id: 3, title: "Note de synthèse interne", type: "text", date: "15/12/2023", category: "Interne", access: "global", description: "Voici les points clés de la réunion du 15 décembre concernant l'adoption de l'IA..." }
 ];
 const MOCK_PROMPTS: Prompt[] = [
-  { id: 1, title: "Prompt Démo", content: "Ceci est un exemple car Supabase n'est pas connecté.", author: "Système", role: "Bot", avatar: "AI", missionLocale: "National", date: "Maintenant", tags: ["Demo"], likes: 0, forks: 0, isFork: false }
+  { id: 1, title: "Prompt Démo", content: "Ceci est un exemple car Supabase n'est pas connecté.", author: "Système", role: "Bot", avatar: "AI", missionLocale: "National", date: "Maintenant", tags: ["Administratif"], likes: 0, forks: 0, isFork: false }
 ];
 
 // --- COMPOSANTS UI ---
@@ -124,54 +123,29 @@ const LoginPage = ({ onLogin, onOpenLegal }: LoginPageProps) => {
     setLoading(true);
     setError('');
 
-    // Si Supabase n'est pas initialisé (ex: variables manquantes), fallback sur le mock
     if (!supabase) {
-      console.warn("Supabase non connecté, utilisation du mode démo.");
       const mockUser = MOCK_USERS_LIST.find(u => u.email === email);
       if (mockUser) onLogin(mockUser);
-      else setError("Base de données non connectée. Vérifiez vos variables d'environnement.");
+      else setError("Utilisateur démo introuvable (essayez admin@ia.fr)");
       setLoading(false);
       return;
     }
 
     try {
-      // VRAI LOGIN SUPABASE
       const { data, error: authError } = await supabase.auth.signInWithPassword({ email, password });
-      
-      if (authError) {
-        throw authError;
-      }
+      if (authError) throw authError;
 
       if (data.user) {
-        // Récupérer le profil étendu
-        const { data: profile, error: profileError } = await supabase
-          .from('profiles')
-          .select('*, structures(name)')
-          .eq('id', data.user.id)
-          .single();
-        
-        if (profileError) {
-           console.error("Erreur récupération profil:", profileError);
-           // Fallback minimal si le profil n'existe pas encore
-           onLogin({
-             id: data.user.id,
-             email: data.user.email || '',
-             name: email.split('@')[0],
-             role: 'Conseiller',
-             missionLocale: 'Non assigné',
-             avatar: 'U'
-           });
-        } else {
-           const userObj: User = {
+        const { data: profile } = await supabase.from('profiles').select('*, structures(name)').eq('id', data.user.id).single();
+        const userObj: User = {
              id: data.user.id,
              email: data.user.email || '',
              name: profile?.full_name || email.split('@')[0],
              role: profile?.role || 'Conseiller',
              missionLocale: profile?.structures?.name || 'National',
              avatar: (profile?.full_name || 'U').substring(0, 2).toUpperCase()
-           };
-           onLogin(userObj);
-        }
+        };
+        onLogin(userObj);
       }
     } catch (err: any) {
       setError(err.message || "Erreur de connexion");
@@ -208,7 +182,6 @@ const LoginPage = ({ onLogin, onOpenLegal }: LoginPageProps) => {
           </button>
         </form>
         
-        {/* COMPTES DEMO POUR L'APERÇU */}
         {!supabase && (
            <div className="mt-6 pt-4 border-t border-slate-100 text-center">
              <p className="text-xs text-slate-400 mb-2">Comptes Démo (Aperçu)</p>
@@ -219,7 +192,6 @@ const LoginPage = ({ onLogin, onOpenLegal }: LoginPageProps) => {
            </div>
         )}
       </div>
-
       <footer className="mt-8 text-center text-xs text-slate-400 space-y-2">
          <p>© 2024 Réseau des Missions Locales</p>
          <div className="flex justify-center gap-4">
@@ -244,158 +216,170 @@ const Dashboard = ({ user, onLogout, onOpenLegal }: DashboardProps) => {
   const [resources, setResources] = useState<Resource[]>([]);
   const [structures, setStructures] = useState<Structure[]>([]);
   
-  // États de formulaire
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState('');
-  const [selectedFile, setSelectedFile] = useState<File | null>(null); // Nouvel état pour le fichier
   
-  // Data Fetching
+  // États spécifiques pour les modales
+  const [promptFormTitle, setPromptFormTitle] = useState('');
+  const [promptFormContent, setPromptFormContent] = useState('');
+  const [promptFormTag, setPromptFormTag] = useState('Administratif');
+  const [parentPromptId, setParentPromptId] = useState<string | number | null>(null);
+
+  // Etats pour les ressources (Fichier, Texte, Lien)
+  const [resFormType, setResFormType] = useState<'file' | 'text' | 'link'>('file');
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [resFormContent, setResFormContent] = useState(''); // Pour le texte ou l'URL
+  
+  // Etat pour la lecture d'une ressource texte
+  const [viewingResource, setViewingResource] = useState<Resource | null>(null);
+
+  // Fonction centralisée pour recharger les données SANS recharger la page
+  const refreshData = useCallback(async () => {
+    if (!supabase) return; 
+
+    try {
+        const { data: pData } = await supabase.from('prompts').select(`*, profiles(full_name, avatar_url, role), structures(name)`).order('created_at', { ascending: false });
+        if (pData) {
+            setPrompts(pData.map((p: any) => ({
+                id: p.id, title: p.title, content: p.content,
+                author: p.profiles?.full_name || 'Inconnu', role: p.profiles?.role || 'Membre',
+                avatar: (p.profiles?.full_name || 'U').substring(0,2).toUpperCase(),
+                missionLocale: p.structures?.name || 'National',
+                date: new Date(p.created_at).toLocaleDateString(),
+                tags: p.tags || [], likes: p.likes_count || 0, forks: 0, isFork: p.is_fork
+            })));
+        }
+        const { data: rData } = await supabase.from('resources').select('*').order('created_at', { ascending: false });
+        if (rData) setResources(rData.map((r: any) => ({ 
+            ...r, 
+            type: r.file_type || 'file' // Mapping DB
+        })));
+        const { data: sData } = await supabase.from('structures').select('*');
+        if (sData) setStructures(sData);
+    } catch (e) {
+        console.error("Erreur refresh:", e);
+    }
+  }, []);
+
+  // Initial Load
   useEffect(() => {
     if (!supabase) {
-      // Fallback si pas de connexion
       setPrompts(MOCK_PROMPTS);
       setResources(MOCK_RESOURCES);
       setStructures(MOCK_STRUCTURES);
-      return;
+    } else {
+      refreshData();
     }
+  }, [refreshData]);
 
-    const fetchData = async () => {
-      try {
-        // 1. Fetch Prompts
-        const { data: pData, error: pError } = await supabase
-          .from('prompts')
-          .select(`*, profiles(full_name, avatar_url, role), structures(name)`)
-          .order('created_at', { ascending: false });
-          
-        if (!pError && pData) {
-          const formattedPrompts = pData.map((p: any) => ({
-            id: p.id,
-            title: p.title,
-            content: p.content,
-            author: p.profiles?.full_name || 'Inconnu',
-            role: p.profiles?.role || 'Membre',
-            avatar: (p.profiles?.full_name || 'U').substring(0,2).toUpperCase(),
-            missionLocale: p.structures?.name || 'National',
-            date: new Date(p.created_at).toLocaleDateString(),
-            tags: p.tags || [],
-            likes: p.likes_count || 0,
-            forks: 0,
-            isFork: p.is_fork
-          }));
-          setPrompts(formattedPrompts);
-        }
+  // --- ACTIONS ---
 
-        // 2. Fetch Resources
-        const { data: rData } = await supabase.from('resources').select('*');
-        if (rData) {
-          const formattedResources = rData.map((r: any) => ({
-            ...r,
-            type: r.file_type || 'pdf'
-          }));
-          setResources(formattedResources);
-        }
+  const prepareCreatePrompt = () => {
+      setModalMode('prompt');
+      setPromptFormTitle('');
+      setPromptFormContent('');
+      setPromptFormTag('Administratif');
+      setParentPromptId(null);
+      setIsModalOpen(true);
+  }
 
-        // 3. Fetch Structures
-        const { data: sData } = await supabase.from('structures').select('*');
-        if (sData) setStructures(sData);
-        
-      } catch (err) {
-        console.error("Erreur chargement données:", err);
-      }
-    };
-
-    fetchData();
-  }, [user]);
-
-  // --- ACTIONS (INSERT) ---
+  const prepareForkPrompt = (original: Prompt) => {
+      setModalMode('prompt');
+      setPromptFormTitle(`Variante : ${original.title}`);
+      setPromptFormContent(original.content);
+      setPromptFormTag(original.tags[0] || 'Administratif');
+      setParentPromptId(original.id);
+      setIsModalOpen(true);
+  }
   
-  const handleCreatePrompt = async (title: string, content: string, tag: string) => {
+  const handleCreatePrompt = async () => {
     if (!supabase) {
-        // Mock add
-        setPrompts([{ id: Date.now(), title, content, author: user.name, role: user.role, avatar: user.avatar, missionLocale: user.missionLocale, date: "À l'instant", tags: [tag], likes: 0, forks: 0, isFork: false }, ...prompts]);
+        const newPrompt: Prompt = { 
+            id: Date.now(), title: promptFormTitle, content: promptFormContent, 
+            author: user.name, role: user.role, avatar: user.avatar, missionLocale: user.missionLocale, date: "À l'instant", tags: [promptFormTag], likes: 0, forks: 0, isFork: !!parentPromptId, parentId: parentPromptId 
+        };
+        setPrompts([newPrompt, ...prompts]);
         setIsModalOpen(false);
         return;
     }
 
     try {
       const { data: profile } = await supabase.from('profiles').select('structure_id').eq('id', user.id).single();
-      
       const { error } = await supabase.from('prompts').insert({
-          title, 
-          content, 
-          tags: [tag], 
-          user_id: user.id,
-          structure_id: profile?.structure_id
+          title: promptFormTitle, content: promptFormContent, tags: [promptFormTag], 
+          user_id: user.id, structure_id: profile?.structure_id, is_fork: !!parentPromptId, parent_id: parentPromptId
       });
-      
       if (error) throw error;
-      window.location.reload(); 
+      await refreshData();
+      setIsModalOpen(false);
     } catch (err: any) {
-      alert("Erreur lors de la création : " + err.message);
+      alert("Erreur création : " + err.message);
     }
   };
 
-  const handleCreateResource = async (title: string, type: string, category: string, scope: string, file: File | null, targetStructId?: string) => {
+  const handleCreateResource = async (title: string, category: string, scope: string, targetStructId?: string) => {
+      // Préparation des données selon le type
+      let finalUrl = '';
+      let description = '';
+      let type = resFormType;
+
       if (!supabase) { 
           // Mode Démo
-          alert("Mode démo : Fichier simulé ajouté.");
+          if (resFormType === 'text') description = resFormContent;
+          if (resFormType === 'link') finalUrl = resFormContent;
+          
+          setResources([{ id: Date.now(), title, type, category, access: scope, date: "À l'instant", file_url: finalUrl, description }, ...resources]);
           setIsModalOpen(false); 
           return; 
       }
       
-      let fileUrl = '';
-
-      // UPLOAD DU FICHIER SI PRÉSENT
-      if (file) {
+      // Logique Prod
+      if (resFormType === 'file' && selectedFile) {
           try {
-              // Nom unique pour éviter les conflits
-              const fileExt = file.name.split('.').pop();
-              const fileName = `${Date.now()}_${Math.random().toString(36).substr(2, 9)}.${fileExt}`;
-              const filePath = `${user.id}/${fileName}`;
-
-              // 1. Upload vers le Bucket 'documents'
-              const { error: uploadError } = await supabase.storage
-                  .from('documents') // Assurez-vous d'avoir créé ce bucket public dans Supabase !
-                  .upload(filePath, file);
-
+              const fileExt = selectedFile.name.split('.').pop();
+              const fileName = `${user.id}/${Date.now()}.${fileExt}`;
+              const { error: uploadError } = await supabase.storage.from('documents').upload(fileName, selectedFile);
               if (uploadError) throw uploadError;
-
-              // 2. Récupérer l'URL publique
-              const { data: urlData } = supabase.storage
-                  .from('documents')
-                  .getPublicUrl(filePath);
-              
-              fileUrl = urlData.publicUrl;
-
+              const { data: urlData } = supabase.storage.from('documents').getPublicUrl(fileName);
+              finalUrl = urlData.publicUrl;
           } catch (uploadError: any) {
-              alert("Erreur lors de l'upload du fichier : " + uploadError.message);
+              alert("Erreur upload : " + uploadError.message);
               return;
           }
-      } else {
-          // URL placeholder si pas de fichier (ex: lien externe, à implémenter plus tard)
-          fileUrl = 'https://placeholder.com';
+      } else if (resFormType === 'link') {
+          finalUrl = resFormContent; // L'URL est stockée dans file_url
+      } else if (resFormType === 'text') {
+          description = resFormContent; // Le texte est stocké dans description
       }
       
-      // INSERTION EN BASE DE DONNÉES
       const { error } = await supabase.from('resources').insert({
-          title, 
-          file_type: type,
-          category, 
-          access_scope: scope, 
+          title, file_type: type, category, access_scope: scope, 
           target_structure_id: scope === 'local' ? targetStructId : null,
-          file_url: fileUrl,
-          uploaded_by: user.id
+          file_url: finalUrl, description: description, uploaded_by: user.id
       });
       
-      if (error) alert("Erreur ajout ressource en base : " + error.message);
-      else window.location.reload();
+      if (error) alert("Erreur base de données : " + error.message);
+      else {
+          await refreshData();
+          setIsModalOpen(false);
+      }
   };
+
+  const handleDeleteResource = async (id: string | number) => {
+      if(!confirm("Êtes-vous sûr de vouloir supprimer ce document ?")) return;
+      if (!supabase) { setResources(resources.filter(r => r.id !== id)); return; }
+      try {
+          const { error } = await supabase.from('resources').delete().eq('id', id);
+          if (error) throw error;
+          await refreshData();
+      } catch (err: any) { alert("Erreur suppression : " + err.message); }
+  }
 
   const handleCreateStructure = async (name: string, city: string) => {
       if (!supabase) { setIsModalOpen(false); return; }
       const { error } = await supabase.from('structures').insert({ name, city });
-      if (error) alert("Erreur création structure: " + error.message);
-      else window.location.reload();
+      if (error) alert("Erreur : " + error.message);
+      else { await refreshData(); setIsModalOpen(false); }
   }
 
   // --- RENDU UI ---
@@ -433,9 +417,14 @@ const Dashboard = ({ user, onLogout, onOpenLegal }: DashboardProps) => {
             </h1>
             <button 
                onClick={() => { 
-                   setModalMode(currentTab === 'structures' ? 'structure' : currentTab === 'resources' ? 'resource' : 'prompt'); 
-                   setSelectedFile(null); // Reset file
-                   setIsModalOpen(true); 
+                   if (currentTab === 'prompts') prepareCreatePrompt();
+                   else {
+                       setModalMode(currentTab === 'structures' ? 'structure' : 'resource');
+                       setSelectedFile(null);
+                       setResFormType('file');
+                       setResFormContent('');
+                       setIsModalOpen(true);
+                   }
                }}
                className="bg-indigo-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 text-sm font-bold shadow-md hover:bg-indigo-700"
             >
@@ -447,18 +436,29 @@ const Dashboard = ({ user, onLogout, onOpenLegal }: DashboardProps) => {
          {currentTab === 'prompts' && (
             <div className="space-y-4 max-w-4xl">
                {prompts.map(p => (
-                  <div key={p.id} className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+                  <div key={p.id} className={`bg-white p-6 rounded-xl border shadow-sm ${p.isFork ? 'border-l-4 border-l-indigo-400 ml-8' : 'border-slate-200'}`}>
                      <div className="flex justify-between mb-3">
                         <div className="flex items-center gap-3">
                            <div className="w-10 h-10 bg-slate-100 rounded-full flex items-center justify-center font-bold text-slate-600">{p.avatar}</div>
                            <div>
-                              <h3 className="font-bold text-slate-800">{p.title}</h3>
+                              <h3 className="font-bold text-slate-800 flex items-center gap-2">
+                                  {p.title}
+                                  {p.isFork && <span className="text-[10px] bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full flex items-center"><GitFork size={10} className="mr-1"/> Variante</span>}
+                              </h3>
                               <p className="text-xs text-slate-500">{p.author} • {p.missionLocale}</p>
                            </div>
                         </div>
                         <Badge>{p.tags[0]}</Badge>
                      </div>
                      <div className="bg-slate-50 p-4 rounded text-sm font-mono text-slate-700 whitespace-pre-wrap">{p.content}</div>
+                     <div className="mt-4 pt-4 border-t border-slate-100 flex justify-end">
+                        <button 
+                            onClick={() => prepareForkPrompt(p)}
+                            className="text-xs font-medium text-indigo-600 hover:bg-indigo-50 px-3 py-1.5 rounded flex items-center gap-1"
+                        >
+                            <GitFork size={14} /> Améliorer / Proposer une variante
+                        </button>
+                     </div>
                   </div>
                ))}
                {prompts.length === 0 && <p className="text-center text-slate-400">Aucun prompt pour le moment.</p>}
@@ -467,21 +467,46 @@ const Dashboard = ({ user, onLogout, onOpenLegal }: DashboardProps) => {
 
          {/* LISTE RESSOURCES */}
          {currentTab === 'resources' && (
-            <div className="grid grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                {resources.map(r => (
-                  <div key={r.id} className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition-all relative group">
+                  <div key={r.id} className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition-all relative group flex flex-col justify-between">
+                     {/* BADGE LOCAL/GLOBAL */}
                      {r.access !== 'global' && <span className="absolute top-2 right-2 bg-indigo-100 text-indigo-700 text-[10px] px-2 py-1 rounded font-bold">Local</span>}
-                     <div className="flex gap-4">
-                        <div className="bg-red-50 text-red-600 p-3 rounded-lg"><FileText /></div>
+                     
+                     <div className="flex gap-4 mb-4">
+                        <div className={`p-3 rounded-lg ${r.type === 'link' ? 'bg-emerald-50 text-emerald-600' : r.type === 'text' ? 'bg-amber-50 text-amber-600' : 'bg-red-50 text-red-600'}`}>
+                            {r.type === 'link' ? <LinkIcon size={24} /> : r.type === 'text' ? <AlignLeft size={24} /> : <FileText size={24} />}
+                        </div>
                         <div className="flex-1 overflow-hidden">
                            <h4 className="font-bold text-sm text-slate-800 truncate" title={r.title}>{r.title}</h4>
                            <span className="text-xs text-slate-500 block mt-1">{r.category}</span>
-                           {r.file_url && r.file_url.startsWith('http') && (
-                               <a href={r.file_url} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:underline flex items-center gap-1 mt-2">
-                                   <Download size={12} /> Télécharger
-                               </a>
-                           )}
                         </div>
+                     </div>
+
+                     <div className="flex items-center justify-between border-t border-slate-50 pt-3">
+                        {/* ACTION PRINCIPALE SELON TYPE */}
+                        {r.type === 'link' && r.file_url && (
+                            <a href={r.file_url} target="_blank" rel="noopener noreferrer" className="text-xs font-medium text-emerald-600 hover:underline flex items-center gap-1">
+                                <ExternalLink size={12} /> Visiter
+                            </a>
+                        )}
+                        {r.type === 'text' && (
+                            <button onClick={() => setViewingResource(r)} className="text-xs font-medium text-amber-600 hover:underline flex items-center gap-1">
+                                <Eye size={12} /> Lire
+                            </button>
+                        )}
+                        {(r.type === 'file' || r.type === 'pdf' || !r.type) && r.file_url && (
+                            <a href={r.file_url} target="_blank" rel="noopener noreferrer" className="text-xs font-medium text-blue-600 hover:underline flex items-center gap-1">
+                                <Download size={12} /> Télécharger
+                            </a>
+                        )}
+
+                        {/* BOUTON SUPPRIMER POUR ADMIN */}
+                        {user.role === 'Admin' && (
+                            <button onClick={() => handleDeleteResource(r.id)} className="text-xs text-red-400 hover:text-red-600 flex items-center gap-1">
+                                <Trash2 size={12} />
+                            </button>
+                        )}
                      </div>
                   </div>
                ))}
@@ -503,12 +528,21 @@ const Dashboard = ({ user, onLogout, onOpenLegal }: DashboardProps) => {
          )}
       </main>
 
+      {/* MODAL LECTURE DE RESSOURCE TEXTE */}
+      <Modal isOpen={!!viewingResource} onClose={() => setViewingResource(null)} title={viewingResource?.title || 'Lecture'}>
+          <div className="prose prose-sm prose-slate max-w-none">
+              <p className="whitespace-pre-wrap">{viewingResource?.description}</p>
+          </div>
+      </Modal>
+
       {/* MODAL SIMPLIFIÉE POUR AJOUT */}
       {isModalOpen && (
          <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
             <div className="bg-white rounded-xl shadow-xl w-full max-w-lg p-6">
                <div className="flex justify-between items-center mb-6">
-                  <h3 className="text-xl font-bold">Nouvel Ajout</h3>
+                  <h3 className="text-xl font-bold">
+                      {modalMode === 'prompt' ? (parentPromptId ? "Améliorer ce prompt" : "Nouveau Prompt") : "Nouvelle Ressource"}
+                  </h3>
                   <button onClick={() => setIsModalOpen(false)}><X /></button>
                </div>
                
@@ -518,18 +552,58 @@ const Dashboard = ({ user, onLogout, onOpenLegal }: DashboardProps) => {
                   const formData = new FormData(form);
                   
                   if (modalMode === 'prompt') {
-                     handleCreatePrompt(formData.get('title') as string, formData.get('content') as string, 'Administratif');
+                     handleCreatePrompt();
                   } else if (modalMode === 'structure') {
                      handleCreateStructure(formData.get('name') as string, formData.get('city') as string);
                   } else if (modalMode === 'resource') {
-                     handleCreateResource(formData.get('title') as string, 'pdf', 'Formation', 'global', selectedFile);
+                     handleCreateResource(formData.get('title') as string, formData.get('category') as string, 'global', selectedFile, undefined);
                   }
                }} className="space-y-4">
                   
                   {modalMode === 'prompt' && (
                      <>
-                        <input name="title" required placeholder="Titre du prompt" className="w-full border p-2 rounded" />
-                        <textarea name="content" required placeholder="Votre prompt..." rows={5} className="w-full border p-2 rounded font-mono text-sm" />
+                        {parentPromptId && (
+                            <div className="bg-indigo-50 border border-indigo-100 p-3 rounded text-xs text-indigo-700 flex items-center gap-2">
+                                <GitFork size={14}/>
+                                Vous créez une variante. Le contenu original est pré-rempli.
+                            </div>
+                        )}
+                        <div>
+                            <label className="block text-xs font-bold text-slate-500 mb-1">Titre</label>
+                            <input 
+                                value={promptFormTitle}
+                                onChange={(e) => setPromptFormTitle(e.target.value)}
+                                required 
+                                placeholder="Titre du prompt" 
+                                className="w-full border p-2 rounded" 
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-xs font-bold text-slate-500 mb-1">Catégorie</label>
+                            <select 
+                                value={promptFormTag}
+                                onChange={(e) => setPromptFormTag(e.target.value)}
+                                className="w-full border p-2 rounded bg-white"
+                            >
+                                <option value="Administratif">Administratif</option>
+                                <option value="Relation Jeunes">Relation Jeunes</option>
+                                <option value="Direction">Direction</option>
+                                <option value="RH">RH</option>
+                                <option value="Projets">Appels à Projets</option>
+                                <option value="Autre">Autre</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label className="block text-xs font-bold text-slate-500 mb-1">Contenu</label>
+                            <textarea 
+                                value={promptFormContent}
+                                onChange={(e) => setPromptFormContent(e.target.value)}
+                                required 
+                                placeholder="Votre prompt..." 
+                                rows={8} 
+                                className="w-full border p-2 rounded font-mono text-sm" 
+                            />
+                        </div>
                      </>
                   )}
 
@@ -542,23 +616,71 @@ const Dashboard = ({ user, onLogout, onOpenLegal }: DashboardProps) => {
 
                   {modalMode === 'resource' && (
                      <>
-                        <input name="title" required placeholder="Titre du document" className="w-full border p-2 rounded" />
+                        <div>
+                            <label className="block text-xs font-bold text-slate-500 mb-1">Titre</label>
+                            <input name="title" required placeholder="Titre de la ressource" className="w-full border p-2 rounded" />
+                        </div>
                         
-                        <div className="border-2 border-dashed border-slate-300 rounded-lg p-6 text-center hover:bg-slate-50 transition-colors cursor-pointer relative">
-                            <input 
-                                type="file" 
-                                className="absolute inset-0 opacity-0 cursor-pointer" 
-                                onChange={(e) => {
-                                    if(e.target.files && e.target.files[0]) setSelectedFile(e.target.files[0]);
-                                }}
-                            />
-                            <div className="flex flex-col items-center pointer-events-none">
-                                <UploadCloud className="text-slate-400 mb-2" size={32} />
-                                <span className="text-sm font-medium text-slate-600">
-                                    {selectedFile ? selectedFile.name : "Cliquez pour sélectionner un fichier"}
-                                </span>
-                                <span className="text-xs text-slate-400 mt-1">PDF, Vidéo ou Slides</span>
+                        <div>
+                            <label className="block text-xs font-bold text-slate-500 mb-2">Type de contenu</label>
+                            <div className="flex bg-slate-100 p-1 rounded-lg">
+                                <button type="button" onClick={() => setResFormType('file')} className={`flex-1 py-1.5 text-xs font-medium rounded-md transition-all ${resFormType === 'file' ? 'bg-white shadow text-indigo-600' : 'text-slate-500 hover:text-slate-700'}`}>Fichier</button>
+                                <button type="button" onClick={() => setResFormType('text')} className={`flex-1 py-1.5 text-xs font-medium rounded-md transition-all ${resFormType === 'text' ? 'bg-white shadow text-indigo-600' : 'text-slate-500 hover:text-slate-700'}`}>Texte</button>
+                                <button type="button" onClick={() => setResFormType('link')} className={`flex-1 py-1.5 text-xs font-medium rounded-md transition-all ${resFormType === 'link' ? 'bg-white shadow text-indigo-600' : 'text-slate-500 hover:text-slate-700'}`}>Lien</button>
                             </div>
+                        </div>
+
+                        {resFormType === 'file' && (
+                            <div className="border-2 border-dashed border-slate-300 rounded-lg p-6 text-center hover:bg-slate-50 transition-colors cursor-pointer relative">
+                                <input 
+                                    type="file" 
+                                    className="absolute inset-0 opacity-0 cursor-pointer" 
+                                    onChange={(e) => {
+                                        if(e.target.files && e.target.files[0]) setSelectedFile(e.target.files[0]);
+                                    }}
+                                />
+                                <div className="flex flex-col items-center pointer-events-none">
+                                    <UploadCloud className="text-slate-400 mb-2" size={32} />
+                                    <span className="text-sm font-medium text-slate-600">
+                                        {selectedFile ? selectedFile.name : "Cliquez pour sélectionner un fichier"}
+                                    </span>
+                                </div>
+                            </div>
+                        )}
+
+                        {resFormType === 'text' && (
+                            <div>
+                                <textarea 
+                                    value={resFormContent}
+                                    onChange={(e) => setResFormContent(e.target.value)}
+                                    placeholder="Écrivez votre contenu ici..."
+                                    rows={6}
+                                    className="w-full border p-2 rounded font-mono text-sm"
+                                />
+                            </div>
+                        )}
+
+                        {resFormType === 'link' && (
+                            <div>
+                                <input 
+                                    type="url"
+                                    value={resFormContent}
+                                    onChange={(e) => setResFormContent(e.target.value)}
+                                    placeholder="https://exemple.com"
+                                    className="w-full border p-2 rounded"
+                                />
+                            </div>
+                        )}
+
+                        <div>
+                            <label className="block text-xs font-bold text-slate-500 mb-1">Catégorie</label>
+                            <select name="category" className="w-full border p-2 rounded bg-white">
+                                <option>Formation</option>
+                                <option>Veille</option>
+                                <option>Juridique</option>
+                                <option>Outil</option>
+                                <option>Interne</option>
+                            </select>
                         </div>
                      </>
                   )}
@@ -589,18 +711,16 @@ export default function App() {
       <div className="prose prose-sm prose-slate max-w-none text-slate-600">
           {legalType === 'mentions' ? (
               <div className="space-y-3">
-                  <p><strong>Éditeur du site :</strong> MissionIA (Association fictive pour la démo)</p>
-                  <p><strong>Siège social :</strong> 123 Avenue de l'Intelligence, 75000 Paris</p>
+                  <p><strong>Éditeur du site :</strong> MissionIA</p>
                   <p><strong>Contact :</strong> contact@missionia.fr</p>
                   <p><strong>Hébergeur :</strong> Vercel Inc.</p>
-                  <p>Ce site est une plateforme de démonstration pédagogique à destination des Missions Locales.</p>
+                  <p>Ce site est une plateforme de démonstration pédagogique.</p>
               </div>
           ) : (
               <div className="space-y-3">
-                  <p><strong>Protection des données (RGPD) :</strong></p>
-                  <p>Les données collectées (prompts, documents, profils) sont utilisées exclusivement dans le cadre de l'animation du réseau des Missions Locales et de l'amélioration des pratiques professionnelles.</p>
-                  <p>Conformément à la loi Informatique et Libertés, vous disposez d'un droit d'accès, de rectification et de suppression de vos données.</p>
-                  <p>Aucune donnée n'est revendue à des tiers.</p>
+                  <p><strong>Données personnelles :</strong></p>
+                  <p>Les données sont utilisées uniquement pour le fonctionnement du service.</p>
+                  <p>Vous disposez d'un droit d'accès et de rectification.</p>
               </div>
           )}
       </div>
