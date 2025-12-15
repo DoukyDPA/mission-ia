@@ -13,7 +13,7 @@ import {
   BookOpen, Sparkles, GitFork, Users, Search, FileText, Video, Download, 
   ThumbsUp, MessageSquare, Copy, Plus, ArrowRight, Menu, X, Send, LogOut, 
   Lock, Building2, Globe, UploadCloud, UserPlus, Trash2, Filter, Info, ShieldCheck, 
-  Link as LinkIcon, AlignLeft, ExternalLink, Eye
+  Link as LinkIcon, AlignLeft, ExternalLink, Eye, Pencil
 } from 'lucide-react';
 
 // --- CONFIGURATION SUPABASE ---
@@ -34,9 +34,6 @@ const supabase = (supabaseUrl && supabaseAnonKey)
   ? createClient(supabaseUrl, supabaseAnonKey) 
   : null;
 
-// ==================================================================================
-
-
 // --- TYPES ---
 interface Structure { id: string | number; name: string; city: string; }
 interface User { id: string | number; email: string; name: string; role: string; missionLocale: string; avatar: string; }
@@ -46,6 +43,7 @@ interface Prompt {
   id: string | number; title: string; content: string; author: string; role: string; 
   avatar: string; missionLocale: string; date: string; tags: string[]; 
   likes: number; forks: number; isFork: boolean; parentId?: string | number | null; parentAuthor?: string;
+  user_id?: string | number; // Ajout pour vérifier la propriété
 }
 
 // --- DONNÉES FICTIVES (FALLBACK) ---
@@ -54,8 +52,8 @@ const MOCK_STRUCTURES: Structure[] = [
   { id: 2, name: "Mission Locale de Paris", city: "Paris" }
 ];
 const MOCK_PROMPTS: Prompt[] = [
-  { id: 1, title: "Synthèse entretien", content: "Prompt exemple...", author: "Pierre", role: "Conseiller", avatar: "PI", missionLocale: "ML Lyon", date: "Hier", tags: ["Administratif"], likes: 5, forks: 1, isFork: false },
-  { id: 2, title: "Synthèse améliorée", content: "Prompt amélioré...", author: "Sarah", role: "Conseiller", avatar: "SA", missionLocale: "ML Paris", date: "Aujourd'hui", tags: ["Administratif"], likes: 2, forks: 0, isFork: true, parentId: 1, parentAuthor: "Pierre" }
+  { id: 1, title: "Synthèse entretien", content: "Prompt exemple...", author: "Pierre", role: "Conseiller", avatar: "PI", missionLocale: "ML Lyon", date: "Hier", tags: ["Administratif"], likes: 5, forks: 1, isFork: false, user_id: 101 },
+  { id: 2, title: "Synthèse améliorée", content: "Prompt amélioré...", author: "Sarah", role: "Conseiller", avatar: "SA", missionLocale: "ML Paris", date: "Aujourd'hui", tags: ["Administratif"], likes: 2, forks: 0, isFork: true, parentId: 1, parentAuthor: "Pierre", user_id: 102 }
 ];
 const MOCK_RESOURCES: Resource[] = []; 
 
@@ -213,6 +211,7 @@ const Dashboard = ({ user, onLogout, onOpenLegal }: DashboardProps) => {
   const [selectedCategory, setSelectedCategory] = useState('Tous');
   
   // États formulaires
+  const [editingPromptId, setEditingPromptId] = useState<string | number | null>(null);
   const [promptFormTitle, setPromptFormTitle] = useState('');
   const [promptFormContent, setPromptFormContent] = useState('');
   const [promptFormTag, setPromptFormTag] = useState('Administratif');
@@ -222,6 +221,10 @@ const Dashboard = ({ user, onLogout, onOpenLegal }: DashboardProps) => {
   const [resFormType, setResFormType] = useState<'file' | 'text' | 'link'>('file');
   const [resFormContent, setResFormContent] = useState('');
   const [viewingResource, setViewingResource] = useState<Resource | null>(null);
+
+  // --- VÉRIFICATION ADMIN ROBUSTE ---
+  // Ignore la casse (Admin = admin) et les espaces inutiles
+  const isAdmin = (user.role || '').trim().toLowerCase() === 'admin';
 
   // REFRESH DATA
   const refreshData = useCallback(async () => {
@@ -245,7 +248,8 @@ const Dashboard = ({ user, onLogout, onOpenLegal }: DashboardProps) => {
                 date: new Date(p.created_at).toLocaleDateString(),
                 tags: p.tags || [], likes: p.likes_count || 0, forks: 0, isFork: p.is_fork,
                 parentId: p.parent_id,
-                parentAuthor: p.parent_id ? promptAuthors.get(p.parent_id) : undefined
+                parentAuthor: p.parent_id ? promptAuthors.get(p.parent_id) : undefined,
+                user_id: p.user_id
             })));
         }
         const { data: rData } = await supabase.from('resources').select('*').order('created_at', { ascending: false });
@@ -279,6 +283,7 @@ const Dashboard = ({ user, onLogout, onOpenLegal }: DashboardProps) => {
 
   const prepareCreatePrompt = () => {
       setModalMode('prompt');
+      setEditingPromptId(null);
       setPromptFormTitle(''); setPromptFormContent('');
       setPromptFormTag('Administratif'); setParentPromptId(null);
       setIsModalOpen(true);
@@ -286,27 +291,50 @@ const Dashboard = ({ user, onLogout, onOpenLegal }: DashboardProps) => {
 
   const prepareForkPrompt = (original: Prompt) => {
       setModalMode('prompt');
+      setEditingPromptId(null);
       setPromptFormTitle(`Variante : ${original.title}`);
       setPromptFormContent(original.content);
       setPromptFormTag(original.tags[0] || 'Administratif');
       setParentPromptId(original.id);
       setIsModalOpen(true);
   }
+
+  const prepareEditPrompt = (original: Prompt) => {
+      setModalMode('prompt');
+      setEditingPromptId(original.id); // On passe en mode édition
+      setPromptFormTitle(original.title);
+      setPromptFormContent(original.content);
+      setPromptFormTag(original.tags[0] || 'Administratif');
+      setParentPromptId(null);
+      setIsModalOpen(true);
+  }
   
-  const handleCreatePrompt = async () => {
+  const handleSubmitPrompt = async () => {
     if (!supabase) return;
 
     try {
-      const { data: profile } = await supabase.from('profiles').select('structure_id').eq('id', user.id).single();
-      const { error } = await supabase.from('prompts').insert({
-          title: promptFormTitle, content: promptFormContent, tags: [promptFormTag], 
-          user_id: user.id, structure_id: profile?.structure_id, is_fork: !!parentPromptId, parent_id: parentPromptId
-      });
-      if (error) throw error;
+      if (editingPromptId) {
+          // MODE ÉDITION (UPDATE)
+          const { error } = await supabase.from('prompts').update({
+              title: promptFormTitle, 
+              content: promptFormContent, 
+              tags: [promptFormTag]
+          }).eq('id', editingPromptId);
+          if (error) throw error;
+      } else {
+          // MODE CRÉATION (INSERT)
+          const { data: profile } = await supabase.from('profiles').select('structure_id').eq('id', user.id).single();
+          const { error } = await supabase.from('prompts').insert({
+              title: promptFormTitle, content: promptFormContent, tags: [promptFormTag], 
+              user_id: user.id, structure_id: profile?.structure_id, is_fork: !!parentPromptId, parent_id: parentPromptId
+          });
+          if (error) throw error;
+      }
+      
       await refreshData();
       setIsModalOpen(false);
     } catch (err: any) {
-      alert("Erreur création : " + err.message);
+      alert("Erreur : " + err.message);
     }
   };
 
@@ -388,10 +416,17 @@ const Dashboard = ({ user, onLogout, onOpenLegal }: DashboardProps) => {
             <nav className="p-4 space-y-1">
                <SidebarItem icon={GitFork} label="Prompts" active={currentTab === 'prompts'} onClick={() => setCurrentTab('prompts')} />
                <SidebarItem icon={BookOpen} label="Ressources" active={currentTab === 'resources'} onClick={() => setCurrentTab('resources')} />
-               {user.role === 'Admin' && <SidebarItem icon={Building2} label="Admin Structures" active={currentTab === 'structures'} onClick={() => setCurrentTab('structures')} />}
+               {isAdmin && <SidebarItem icon={Building2} label="Admin Structures" active={currentTab === 'structures'} onClick={() => setCurrentTab('structures')} />}
             </nav>
          </div>
          <div className="p-4 border-t border-slate-100 bg-slate-50">
+            <div className="mb-2 px-2">
+                <p className="text-sm font-bold text-slate-700 truncate">{user.name}</p>
+                <p className="text-xs text-slate-500 truncate flex items-center gap-1">
+                    {user.role} 
+                    {isAdmin && <ShieldCheck size={12} className="text-indigo-600"/>}
+                </p>
+            </div>
             <button onClick={onLogout} className="flex items-center gap-2 text-slate-500 hover:text-red-500 mb-3 ml-2 text-sm"><LogOut size={16}/> Déconnexion</button>
             <div className="flex justify-center gap-3 text-[10px] text-slate-400 border-t border-slate-200 pt-3">
                <button onClick={() => onOpenLegal('mentions')} className="hover:text-indigo-600">Mentions Légales</button>
@@ -466,9 +501,17 @@ const Dashboard = ({ user, onLogout, onOpenLegal }: DashboardProps) => {
                         </div>
                         <div className="flex items-center gap-2">
                             <Badge>{p.tags[0]}</Badge>
+                            
+                            {/* BOUTON ÉDITER (Admin ou Auteur) */}
+                            {(isAdmin || p.user_id === user.id) && (
+                                <button onClick={() => prepareEditPrompt(p)} className="text-slate-300 hover:text-indigo-500 p-1" title="Modifier">
+                                    <Pencil size={14} />
+                                </button>
+                            )}
+
                             {/* SUPPRESSION ADMIN PROMPT */}
-                            {user.role === 'Admin' && (
-                                <button onClick={() => handleDeletePrompt(p.id)} className="text-slate-300 hover:text-red-500 p-1">
+                            {isAdmin && (
+                                <button onClick={() => handleDeletePrompt(p.id)} className="text-slate-300 hover:text-red-500 p-1" title="Supprimer">
                                     <Trash2 size={14} />
                                 </button>
                             )}
@@ -526,7 +569,7 @@ const Dashboard = ({ user, onLogout, onOpenLegal }: DashboardProps) => {
                         )}
 
                         {/* BOUTON SUPPRIMER POUR ADMIN */}
-                        {user.role === 'Admin' && (
+                        {isAdmin && (
                             <button onClick={() => handleDeleteResource(r.id)} className="text-xs text-red-400 hover:text-red-600 flex items-center gap-1">
                                 <Trash2 size={12} />
                             </button>
@@ -565,7 +608,9 @@ const Dashboard = ({ user, onLogout, onOpenLegal }: DashboardProps) => {
             <div className="bg-white rounded-xl shadow-xl w-full max-w-lg p-6">
                <div className="flex justify-between items-center mb-6">
                   <h3 className="text-xl font-bold">
-                      {modalMode === 'prompt' ? (parentPromptId ? "Améliorer ce prompt" : "Nouveau Prompt") : "Nouvelle Ressource"}
+                      {modalMode === 'prompt' ? 
+                          (editingPromptId ? "Modifier le prompt" : parentPromptId ? "Améliorer ce prompt" : "Nouveau Prompt") 
+                          : "Nouvelle Ressource"}
                   </h3>
                   <button onClick={() => setIsModalOpen(false)}><X /></button>
                </div>
@@ -576,7 +621,7 @@ const Dashboard = ({ user, onLogout, onOpenLegal }: DashboardProps) => {
                   const formData = new FormData(form);
                   
                   if (modalMode === 'prompt') {
-                     handleCreatePrompt();
+                     handleSubmitPrompt();
                   } else if (modalMode === 'structure') {
                      handleCreateStructure(formData.get('name') as string, formData.get('city') as string);
                   } else if (modalMode === 'resource') {
@@ -587,7 +632,7 @@ const Dashboard = ({ user, onLogout, onOpenLegal }: DashboardProps) => {
                   
                   {modalMode === 'prompt' && (
                      <>
-                        {parentPromptId && (
+                        {parentPromptId && !editingPromptId && (
                             <div className="bg-indigo-50 border border-indigo-100 p-3 rounded text-xs text-indigo-700 flex items-center gap-2">
                                 <GitFork size={14}/>
                                 Vous créez une variante. Le contenu original est pré-rempli.
