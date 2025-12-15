@@ -2,12 +2,12 @@
 import React, { useState, useEffect, useCallback } from 'react';
 
 // ==================================================================================
-// ⚠️ VERSION PRODUCTION (PRÊTE POUR VERCEL)
-// Assurez-vous d'avoir lancé : npm install @supabase/supabase-js
+// ⚠️ INSTRUCTIONS POUR LE DÉPLOIEMENT (PRODUCTION) ⚠️
 // ==================================================================================
-
-// 1. IMPORT ACTIF
+// 1. Installez Supabase localement : npm install @supabase/supabase-js
+// 2. DÉCOMMENTEZ la ligne d'import ci-dessous pour la production :
 import { createClient } from '@supabase/supabase-js';
+// ==================================================================================
 
 import { 
   BookOpen, Sparkles, GitFork, Users, Search, FileText, Video, Download, 
@@ -20,15 +20,27 @@ import {
 const supabaseUrl = (typeof process !== 'undefined' && process.env) ? process.env.NEXT_PUBLIC_SUPABASE_URL : '';
 const supabaseAnonKey = (typeof process !== 'undefined' && process.env) ? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY : '';
 
-// 2. CLIENT ACTIF (Mode Production)
-// Si les variables manquent, cela ne plantera pas mais supabase vaudra null.
+// ==================================================================================
+// 3. INITIALISATION DU CLIENT (CHOISISSEZ UNE SEULE OPTION)
+// ==================================================================================
+
+// OPTION A : MODE APERÇU (Actif par défaut pour éviter les erreurs ici)
+/* const supabase: any = null; */
+
+// OPTION B : MODE PRODUCTION (Vraie connexion - À DÉCOMMENTER EN PROD)
+
 const supabase = (supabaseUrl && supabaseAnonKey) 
+  // @ts-ignore
   ? createClient(supabaseUrl, supabaseAnonKey) 
   : null;
+
+// ==================================================================================
+
 
 // --- TYPES ---
 interface Structure { id: string | number; name: string; city: string; }
 interface User { id: string | number; email: string; name: string; role: string; missionLocale: string; avatar: string; }
+// Ajout de 'description' pour le contenu texte
 interface Resource { id: string | number; title: string; type: 'file' | 'text' | 'link' | 'pdf' | 'video'; date: string; size?: string; category: string; access: string; file_url?: string; description?: string; }
 interface Prompt { 
   id: string | number; title: string; content: string; author: string; role: string; 
@@ -42,9 +54,10 @@ const MOCK_STRUCTURES: Structure[] = [
   { id: 2, name: "Mission Locale de Paris", city: "Paris" }
 ];
 const MOCK_PROMPTS: Prompt[] = [
-  { id: 1, title: "Prompt Démo", content: "Ceci est un exemple car Supabase n'est pas connecté.", author: "Système", role: "Bot", avatar: "AI", missionLocale: "National", date: "Maintenant", tags: ["Administratif"], likes: 0, forks: 0, isFork: false }
+  { id: 1, title: "Synthèse entretien", content: "Prompt exemple...", author: "Pierre", role: "Conseiller", avatar: "PI", missionLocale: "ML Lyon", date: "Hier", tags: ["Administratif"], likes: 5, forks: 1, isFork: false },
+  { id: 2, title: "Synthèse améliorée", content: "Prompt amélioré...", author: "Sarah", role: "Conseiller", avatar: "SA", missionLocale: "ML Paris", date: "Aujourd'hui", tags: ["Administratif"], likes: 2, forks: 0, isFork: true, parentId: 1, parentAuthor: "Pierre" }
 ];
-const MOCK_RESOURCES: Resource[] = []; // Vide par défaut en mode fallback
+const MOCK_RESOURCES: Resource[] = []; 
 
 // --- COMPOSANTS UI ---
 
@@ -105,11 +118,12 @@ const LoginPage = ({ onLogin, onOpenLegal }: LoginPageProps) => {
 
     // Fallback Mock Login si pas de Supabase
     if (!supabase) {
-      console.warn("Supabase non connecté.");
-      if (email === 'admin@ia.fr') {
-         onLogin({ id: 999, email, name: 'Admin', role: 'Admin', missionLocale: 'National', avatar: 'AD' });
+      console.warn("Supabase non connecté (Mode Aperçu).");
+      // Pour l'aperçu, on laisse passer n'importe quel email
+      if (email.includes('@')) {
+         onLogin({ id: 999, email, name: 'Utilisateur Démo', role: 'Admin', missionLocale: 'National', avatar: 'AD' });
       } else {
-         setError("Base de données non connectée. (Mode Prod actif mais variables manquantes ?)");
+         setError("Veuillez entrer un email valide pour la démo.");
       }
       setLoading(false);
       return;
@@ -121,7 +135,6 @@ const LoginPage = ({ onLogin, onOpenLegal }: LoginPageProps) => {
 
       if (data.user) {
         const { data: profile } = await supabase.from('profiles').select('*, structures(name)').eq('id', data.user.id).single();
-        // Si profil pas encore créé (délai trigger), on crée un user temporaire
         const userObj: User = {
              id: data.user.id,
              email: data.user.email || '',
@@ -146,6 +159,7 @@ const LoginPage = ({ onLogin, onOpenLegal }: LoginPageProps) => {
         <p className="text-center text-slate-500 mb-6 text-sm">Connectez-vous pour accéder aux ressources</p>
         
         {error && <div className="bg-red-50 text-red-600 p-3 rounded-lg text-sm mb-4">{error}</div>}
+        {!supabase && <div className="bg-amber-50 text-amber-700 p-3 rounded-lg text-xs mb-4 border border-amber-200">Mode Aperçu (Sans connexion)</div>}
         
         <form onSubmit={handleLogin} className="space-y-4">
           <div>
@@ -195,6 +209,9 @@ const Dashboard = ({ user, onLogout, onOpenLegal }: DashboardProps) => {
   const [modalMode, setModalMode] = useState('');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   
+  // Filtres
+  const [selectedCategory, setSelectedCategory] = useState('Tous');
+  
   // États formulaires
   const [promptFormTitle, setPromptFormTitle] = useState('');
   const [promptFormContent, setPromptFormContent] = useState('');
@@ -213,13 +230,22 @@ const Dashboard = ({ user, onLogout, onOpenLegal }: DashboardProps) => {
     try {
         const { data: pData } = await supabase.from('prompts').select(`*, profiles(full_name, avatar_url, role), structures(name)`).order('created_at', { ascending: false });
         if (pData) {
+            // Création d'une map pour retrouver facilement les noms des auteurs par ID de prompt
+            // Ceci permet d'afficher "Variante de Pierre" même si on a que l'ID du parent
+            const promptAuthors = new Map();
+            pData.forEach((p: any) => {
+                promptAuthors.set(p.id, p.profiles?.full_name || 'Inconnu');
+            });
+
             setPrompts(pData.map((p: any) => ({
                 id: p.id, title: p.title, content: p.content,
                 author: p.profiles?.full_name || 'Inconnu', role: p.profiles?.role || 'Membre',
                 avatar: (p.profiles?.full_name || 'U').substring(0,2).toUpperCase(),
                 missionLocale: p.structures?.name || 'National',
                 date: new Date(p.created_at).toLocaleDateString(),
-                tags: p.tags || [], likes: p.likes_count || 0, forks: 0, isFork: p.is_fork
+                tags: p.tags || [], likes: p.likes_count || 0, forks: 0, isFork: p.is_fork,
+                parentId: p.parent_id,
+                parentAuthor: p.parent_id ? promptAuthors.get(p.parent_id) : undefined
             })));
         }
         const { data: rData } = await supabase.from('resources').select('*').order('created_at', { ascending: false });
@@ -243,6 +269,12 @@ const Dashboard = ({ user, onLogout, onOpenLegal }: DashboardProps) => {
     }
   }, [refreshData]);
 
+  // --- FILTERED PROMPTS ---
+  const filteredPrompts = prompts.filter(p => {
+      if (selectedCategory === 'Tous') return true;
+      return p.tags.includes(selectedCategory);
+  });
+
   // --- ACTIONS ---
 
   const prepareCreatePrompt = () => {
@@ -262,7 +294,7 @@ const Dashboard = ({ user, onLogout, onOpenLegal }: DashboardProps) => {
   }
   
   const handleCreatePrompt = async () => {
-    if (!supabase) return; // Pas de mock save ici pour simplifier
+    if (!supabase) return;
 
     try {
       const { data: profile } = await supabase.from('profiles').select('structure_id').eq('id', user.id).single();
@@ -278,7 +310,6 @@ const Dashboard = ({ user, onLogout, onOpenLegal }: DashboardProps) => {
     }
   };
 
-  // Correction de la signature pour inclure 'file'
   const handleCreateResource = async (title: string, category: string, scope: string, file: File | null, targetStructId?: string) => {
       if (!supabase) return;
       
@@ -322,6 +353,16 @@ const Dashboard = ({ user, onLogout, onOpenLegal }: DashboardProps) => {
       if (!supabase) return;
       try {
           const { error } = await supabase.from('resources').delete().eq('id', id);
+          if (error) throw error;
+          await refreshData();
+      } catch (err: any) { alert("Erreur suppression : " + err.message); }
+  }
+
+  const handleDeletePrompt = async (id: string | number) => {
+      if(!confirm("Supprimer ce prompt ?")) return;
+      if (!supabase) return;
+      try {
+          const { error } = await supabase.from('prompts').delete().eq('id', id);
           if (error) throw error;
           await refreshData();
       } catch (err: any) { alert("Erreur suppression : " + err.message); }
@@ -386,8 +427,26 @@ const Dashboard = ({ user, onLogout, onOpenLegal }: DashboardProps) => {
 
          {/* LISTE PROMPTS */}
          {currentTab === 'prompts' && (
-            <div className="space-y-4 max-w-4xl">
-               {prompts.map(p => (
+            <div className="space-y-6 max-w-4xl">
+               
+               {/* FILTRES CATÉGORIES */}
+               <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar">
+                 {['Tous', 'Administratif', 'Relation Jeunes', 'Direction', 'RH', 'Projets', 'Autre'].map(cat => (
+                     <button 
+                        key={cat}
+                        onClick={() => setSelectedCategory(cat)}
+                        className={`px-4 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${
+                            selectedCategory === cat 
+                            ? 'bg-indigo-600 text-white' 
+                            : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
+                        }`}
+                     >
+                        {cat}
+                     </button>
+                 ))}
+               </div>
+
+               {filteredPrompts.map(p => (
                   <div key={p.id} className={`bg-white p-6 rounded-xl border shadow-sm ${p.isFork ? 'border-l-4 border-l-indigo-400 ml-8' : 'border-slate-200'}`}>
                      <div className="flex justify-between mb-3">
                         <div className="flex items-center gap-3">
@@ -395,12 +454,25 @@ const Dashboard = ({ user, onLogout, onOpenLegal }: DashboardProps) => {
                            <div>
                               <h3 className="font-bold text-slate-800 flex items-center gap-2">
                                   {p.title}
-                                  {p.isFork && <span className="text-[10px] bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full flex items-center"><GitFork size={10} className="mr-1"/> Variante</span>}
+                                  {/* LABEL VARIANTE NOMINATIF */}
+                                  {p.isFork && p.parentAuthor && (
+                                      <span className="text-[10px] bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-full flex items-center border border-indigo-100">
+                                          <GitFork size={10} className="mr-1"/> Variante de {p.parentAuthor}
+                                      </span>
+                                  )}
                               </h3>
                               <p className="text-xs text-slate-500">{p.author} • {p.missionLocale}</p>
                            </div>
                         </div>
-                        <Badge>{p.tags[0]}</Badge>
+                        <div className="flex items-center gap-2">
+                            <Badge>{p.tags[0]}</Badge>
+                            {/* SUPPRESSION ADMIN PROMPT */}
+                            {user.role === 'Admin' && (
+                                <button onClick={() => handleDeletePrompt(p.id)} className="text-slate-300 hover:text-red-500 p-1">
+                                    <Trash2 size={14} />
+                                </button>
+                            )}
+                        </div>
                      </div>
                      <div className="bg-slate-50 p-4 rounded text-sm font-mono text-slate-700 whitespace-pre-wrap">{p.content}</div>
                      <div className="mt-4 pt-4 border-t border-slate-100 flex justify-end">
@@ -413,7 +485,7 @@ const Dashboard = ({ user, onLogout, onOpenLegal }: DashboardProps) => {
                      </div>
                   </div>
                ))}
-               {prompts.length === 0 && <p className="text-center text-slate-400">Aucun prompt pour le moment.</p>}
+               {filteredPrompts.length === 0 && <p className="text-center text-slate-400 py-10">Aucun prompt pour le moment.</p>}
             </div>
          )}
 
@@ -422,6 +494,7 @@ const Dashboard = ({ user, onLogout, onOpenLegal }: DashboardProps) => {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                {resources.map(r => (
                   <div key={r.id} className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition-all relative group flex flex-col justify-between">
+                     {/* BADGE LOCAL/GLOBAL */}
                      {r.access !== 'global' && <span className="absolute top-2 right-2 bg-indigo-100 text-indigo-700 text-[10px] px-2 py-1 rounded font-bold">Local</span>}
                      
                      <div className="flex gap-4 mb-4">
@@ -435,6 +508,7 @@ const Dashboard = ({ user, onLogout, onOpenLegal }: DashboardProps) => {
                      </div>
 
                      <div className="flex items-center justify-between border-t border-slate-50 pt-3">
+                        {/* ACTION PRINCIPALE SELON TYPE */}
                         {r.type === 'link' && r.file_url && (
                             <a href={r.file_url} target="_blank" rel="noopener noreferrer" className="text-xs font-medium text-emerald-600 hover:underline flex items-center gap-1">
                                 <ExternalLink size={12} /> Visiter
@@ -451,6 +525,7 @@ const Dashboard = ({ user, onLogout, onOpenLegal }: DashboardProps) => {
                             </a>
                         )}
 
+                        {/* BOUTON SUPPRIMER POUR ADMIN */}
                         {user.role === 'Admin' && (
                             <button onClick={() => handleDeleteResource(r.id)} className="text-xs text-red-400 hover:text-red-600 flex items-center gap-1">
                                 <Trash2 size={12} />
@@ -594,6 +669,7 @@ const Dashboard = ({ user, onLogout, onOpenLegal }: DashboardProps) => {
                                     <span className="text-sm font-medium text-slate-600">
                                         {selectedFile ? selectedFile.name : "Cliquez pour sélectionner un fichier"}
                                     </span>
+                                    <span className="text-xs text-slate-400 mt-1">PDF, Vidéo ou Slides</span>
                                 </div>
                             </div>
                         )}
