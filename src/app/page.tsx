@@ -80,8 +80,40 @@ const Badge = ({ children, color = "blue" }: any) => {
   return <span className={`text-xs px-2.5 py-0.5 rounded-full border ${colors[color] || colors.blue}`}>{children}</span>;
 };
 
+// --- MODAL COMPONENT ---
+interface ModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  title: string;
+  children: React.ReactNode;
+}
+
+const Modal = ({ isOpen, onClose, title, children }: ModalProps) => {
+  if (!isOpen) return null;
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
+      <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in duration-200">
+        <div className="flex items-center justify-between p-6 border-b border-slate-100">
+          <h3 className="text-xl font-bold text-slate-800">{title}</h3>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600">
+            <X size={24} />
+          </button>
+        </div>
+        <div className="p-6">
+          {children}
+        </div>
+      </div>
+    </div>
+  );
+};
+
 // --- LOGIN PAGE ---
-const LoginPage = ({ onLogin }: { onLogin: (u: User) => void }) => {
+interface LoginPageProps {
+  onLogin: (u: User) => void;
+  onOpenLegal: (type: 'mentions' | 'privacy') => void;
+}
+
+const LoginPage = ({ onLogin, onOpenLegal }: LoginPageProps) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -187,12 +219,26 @@ const LoginPage = ({ onLogin }: { onLogin: (u: User) => void }) => {
            </div>
         )}
       </div>
+
+      <footer className="mt-8 text-center text-xs text-slate-400 space-y-2">
+         <p>© 2024 Réseau des Missions Locales</p>
+         <div className="flex justify-center gap-4">
+             <button onClick={() => onOpenLegal('mentions')} className="hover:text-indigo-600 hover:underline">Mentions Légales</button>
+             <button onClick={() => onOpenLegal('privacy')} className="hover:text-indigo-600 hover:underline">Politique de Confidentialité</button>
+         </div>
+      </footer>
     </div>
   );
 };
 
 // --- DASHBOARD ---
-const Dashboard = ({ user, onLogout }: { user: User, onLogout: () => void }) => {
+interface DashboardProps {
+  user: User;
+  onLogout: () => void;
+  onOpenLegal: (type: 'mentions' | 'privacy') => void;
+}
+
+const Dashboard = ({ user, onLogout, onOpenLegal }: DashboardProps) => {
   const [currentTab, setCurrentTab] = useState('prompts');
   const [prompts, setPrompts] = useState<Prompt[]>([]);
   const [resources, setResources] = useState<Resource[]>([]);
@@ -330,8 +376,13 @@ const Dashboard = ({ user, onLogout }: { user: User, onLogout: () => void }) => 
                {user.role === 'Admin' && <SidebarItem icon={Building2} label="Admin Structures" active={currentTab === 'structures'} onClick={() => setCurrentTab('structures')} />}
             </nav>
          </div>
-         <div className="p-4 border-t">
-            <button onClick={onLogout} className="flex items-center gap-2 text-slate-500 hover:text-red-500"><LogOut size={16}/> Déconnexion</button>
+         <div className="p-4 border-t border-slate-100 bg-slate-50">
+            <button onClick={onLogout} className="flex items-center gap-2 text-slate-500 hover:text-red-500 mb-3 ml-2 text-sm"><LogOut size={16}/> Déconnexion</button>
+            <div className="flex justify-center gap-3 text-[10px] text-slate-400 border-t border-slate-200 pt-3">
+               <button onClick={() => onOpenLegal('mentions')} className="hover:text-indigo-600">Mentions Légales</button>
+               <span>•</span>
+               <button onClick={() => onOpenLegal('privacy')} className="hover:text-indigo-600">Confidentialité</button>
+            </div>
          </div>
       </aside>
 
@@ -461,5 +512,51 @@ const Dashboard = ({ user, onLogout }: { user: User, onLogout: () => void }) => 
 
 export default function App() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
-  return !currentUser ? <LoginPage onLogin={setCurrentUser} /> : <Dashboard user={currentUser} onLogout={() => setCurrentUser(null)} />;
+  const [isLegalOpen, setIsLegalOpen] = useState(false);
+  const [legalType, setLegalType] = useState<'mentions' | 'privacy'>('mentions');
+
+  const openLegal = (type: 'mentions' | 'privacy') => {
+      setLegalType(type);
+      setIsLegalOpen(true);
+  }
+
+  // --- CONTENU LEGAL ---
+  const LegalContent = () => (
+      <div className="prose prose-sm prose-slate max-w-none text-slate-600">
+          {legalType === 'mentions' ? (
+              <div className="space-y-3">
+                  <p><strong>Éditeur du site :</strong> MissionIA (Association fictive pour la démo)</p>
+                  <p><strong>Siège social :</strong> 123 Avenue de l'Intelligence, 75000 Paris</p>
+                  <p><strong>Contact :</strong> contact@missionia.fr</p>
+                  <p><strong>Hébergeur :</strong> Vercel Inc.</p>
+                  <p>Ce site est une plateforme de démonstration pédagogique à destination des Missions Locales.</p>
+              </div>
+          ) : (
+              <div className="space-y-3">
+                  <p><strong>Protection des données (RGPD) :</strong></p>
+                  <p>Les données collectées (prompts, documents, profils) sont utilisées exclusivement dans le cadre de l'animation du réseau des Missions Locales et de l'amélioration des pratiques professionnelles.</p>
+                  <p>Conformément à la loi Informatique et Libertés, vous disposez d'un droit d'accès, de rectification et de suppression de vos données.</p>
+                  <p>Aucune donnée n'est revendue à des tiers.</p>
+              </div>
+          )}
+      </div>
+  );
+
+  return (
+    <>
+        {!currentUser ? (
+            <LoginPage onLogin={setCurrentUser} onOpenLegal={openLegal} />
+        ) : (
+            <Dashboard user={currentUser} onLogout={() => setCurrentUser(null)} onOpenLegal={openLegal} />
+        )}
+
+        <Modal 
+            isOpen={isLegalOpen} 
+            onClose={() => setIsLegalOpen(false)} 
+            title={legalType === 'mentions' ? "Mentions Légales" : "Politique de Confidentialité"}
+        >
+            <LegalContent />
+        </Modal>
+    </>
+  );
 }
