@@ -30,7 +30,7 @@ const supabase = (supabaseUrl && supabaseAnonKey)
 // ==================================================================================
 
 // Pour l'aperçu ici, on force le mode sans connexion pour éviter le crash
-const supabase: any = null;
+/* const supabase: any = null;*/
 
 // --- TYPES ---
 interface Structure { id: string | number; name: string; city: string; }
