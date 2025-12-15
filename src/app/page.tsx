@@ -27,18 +27,64 @@ import {
   UserPlus,
   Trash2,
   Filter,
-  Info
+  Info,
+  LucideIcon
 } from 'lucide-react';
+
+// --- TYPES (TypeScript Definitions) ---
+
+interface Structure {
+  id: number;
+  name: string;
+  city: string;
+}
+
+interface User {
+  id: number;
+  email: string;
+  name: string;
+  role: string;
+  missionLocale: string;
+  avatar: string;
+}
+
+interface Resource {
+  id: number;
+  title: string;
+  type: string;
+  date: string;
+  size?: string;
+  duration?: string;
+  category: string;
+  access: string;
+}
+
+interface Prompt {
+  id: number;
+  title: string;
+  content: string;
+  author: string;
+  role: string;
+  avatar: string;
+  missionLocale: string;
+  date: string;
+  tags: string[];
+  likes: number;
+  forks: number;
+  isFork: boolean;
+  parentId?: number | null;
+  parentAuthor?: string | null;
+}
 
 // --- Données simulées (Mock Data) ---
 
-const INITIAL_STRUCTURES = [
+const INITIAL_STRUCTURES: Structure[] = [
   { id: 1, name: "Mission Locale de Lyon", city: "Lyon" },
   { id: 2, name: "Mission Locale de Paris", city: "Paris" },
   { id: 3, name: "Mission Locale de Marseille", city: "Marseille" }
 ];
 
-const MOCK_USERS = [
+const MOCK_USERS: User[] = [
   {
     id: 1,
     email: "jean.dupont@ml-lyon.fr",
@@ -65,7 +111,7 @@ const MOCK_USERS = [
   }
 ];
 
-const INITIAL_RESOURCES = [
+const INITIAL_RESOURCES: Resource[] = [
   { id: 1, title: "Module 1 : Les bases du Prompt Engineering", type: "pdf", date: "10 Oct 2023", size: "2.4 MB", category: "Formation", access: "global" },
   { id: 2, title: "Atelier : Utiliser l'IA pour les CVs", type: "video", date: "12 Oct 2023", duration: "45 min", category: "Formation", access: "global" },
   { id: 3, title: "Guide éthique et RGPD", type: "pdf", date: "15 Oct 2023", size: "1.1 MB", category: "Juridique", access: "global" },
@@ -73,7 +119,7 @@ const INITIAL_RESOURCES = [
   { id: 5, title: "Procédure interne : Inscription Parcours", type: "pdf", date: "Il y a 1 mois", size: "1.2 MB", category: "Interne", access: "Mission Locale de Lyon" }, 
 ];
 
-const INITIAL_PROMPTS = [
+const INITIAL_PROMPTS: Prompt[] = [
   {
     id: 1,
     title: "Synthèse d'entretien jeune",
@@ -136,7 +182,14 @@ const INITIAL_PROMPTS = [
 
 // --- Composants ---
 
-const SidebarItem = ({ icon: Icon, label, active, onClick }) => (
+interface SidebarItemProps {
+  icon: React.ElementType;
+  label: string;
+  active: boolean;
+  onClick: () => void;
+}
+
+const SidebarItem = ({ icon: Icon, label, active, onClick }: SidebarItemProps) => (
   <button 
     onClick={onClick}
     className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors mb-1 ${
@@ -150,7 +203,12 @@ const SidebarItem = ({ icon: Icon, label, active, onClick }) => (
   </button>
 );
 
-const Badge = ({ children, color = "blue" }) => {
+interface BadgeProps {
+  children: React.ReactNode;
+  color?: "blue" | "indigo" | "green" | "purple";
+}
+
+const Badge = ({ children, color = "blue" }: BadgeProps) => {
   const styles = {
     blue: "bg-blue-50 text-blue-700 border-blue-200",
     indigo: "bg-indigo-50 text-indigo-700 border-indigo-200",
@@ -164,7 +222,12 @@ const Badge = ({ children, color = "blue" }) => {
   );
 };
 
-const ResourceCard = ({ resource, userMissionLocale }) => (
+interface ResourceCardProps {
+  resource: Resource;
+  userMissionLocale?: string;
+}
+
+const ResourceCard = ({ resource, userMissionLocale }: ResourceCardProps) => (
   <div className="flex items-center justify-between p-4 bg-white border border-slate-200 rounded-xl hover:shadow-md transition-shadow group relative overflow-hidden">
     {resource.access === 'global' && (
        <div className="absolute top-0 right-0 bg-emerald-100 text-emerald-700 text-[10px] px-2 py-0.5 rounded-bl-lg font-bold flex items-center gap-1">
@@ -195,7 +258,12 @@ const ResourceCard = ({ resource, userMissionLocale }) => (
   </div>
 );
 
-const PromptCard = ({ prompt, onFork }) => (
+interface PromptCardProps {
+  prompt: Prompt;
+  onFork: (prompt: Prompt) => void;
+}
+
+const PromptCard = ({ prompt, onFork }: PromptCardProps) => (
   <div className={`group relative bg-white border rounded-xl p-6 transition-all hover:shadow-md ${prompt.isFork ? 'border-indigo-200 ml-8' : 'border-slate-200'}`}>
     
     {prompt.isFork && (
@@ -262,7 +330,12 @@ const PromptCard = ({ prompt, onFork }) => (
 
 // --- Login Page Component ---
 
-const LoginPage = ({ onLogin, onOpenLegal }) => {
+interface LoginPageProps {
+  onLogin: (user: User) => void;
+  onOpenLegal: (type: 'mentions' | 'privacy') => void;
+}
+
+const LoginPage = ({ onLogin, onOpenLegal }: LoginPageProps) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
 
@@ -353,7 +426,15 @@ const LoginPage = ({ onLogin, onOpenLegal }) => {
 };
 
 // --- Modal Component ---
-const Modal = ({ isOpen, onClose, title, children }) => {
+
+interface ModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  title: string;
+  children: React.ReactNode;
+}
+
+const Modal = ({ isOpen, onClose, title, children }: ModalProps) => {
   if (!isOpen) return null;
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
@@ -374,16 +455,22 @@ const Modal = ({ isOpen, onClose, title, children }) => {
 
 // --- Main Dashboard Component ---
 
-const Dashboard = ({ user, onLogout, onOpenLegal }) => {
+interface DashboardProps {
+  user: User;
+  onLogout: () => void;
+  onOpenLegal: (type: 'mentions' | 'privacy') => void;
+}
+
+const Dashboard = ({ user, onLogout, onOpenLegal }: DashboardProps) => {
   const [currentTab, setCurrentTab] = useState('prompts'); 
-  const [prompts, setPrompts] = useState(INITIAL_PROMPTS);
-  const [resources, setResources] = useState(INITIAL_RESOURCES);
-  const [structures, setStructures] = useState(INITIAL_STRUCTURES);
-  const [adminUsers, setAdminUsers] = useState(MOCK_USERS);
+  const [prompts, setPrompts] = useState<Prompt[]>(INITIAL_PROMPTS);
+  const [resources, setResources] = useState<Resource[]>(INITIAL_RESOURCES);
+  const [structures, setStructures] = useState<Structure[]>(INITIAL_STRUCTURES);
+  const [adminUsers, setAdminUsers] = useState<User[]>(MOCK_USERS);
   
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState('create'); 
-  const [selectedPrompt, setSelectedPrompt] = useState(null);
+  const [selectedPrompt, setSelectedPrompt] = useState<Prompt | null>(null);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   // SEARCH & FILTER STATE
@@ -440,7 +527,7 @@ const Dashboard = ({ user, onLogout, onOpenLegal }) => {
     setIsModalOpen(true);
   };
 
-  const openForkModal = (prompt) => {
+  const openForkModal = (prompt: Prompt) => {
     setModalMode('fork');
     setSelectedPrompt(prompt);
     setNewTitle(`${prompt.title} (Amélioré)`);
@@ -472,9 +559,9 @@ const Dashboard = ({ user, onLogout, onOpenLegal }) => {
   }
 
   // Handlers
-  const handlePromptSubmit = (e) => {
+  const handlePromptSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const newPrompt = {
+    const newPrompt: Prompt = {
       id: Date.now(),
       title: newTitle,
       content: newContent,
@@ -485,14 +572,14 @@ const Dashboard = ({ user, onLogout, onOpenLegal }) => {
       date: "À l'instant",
       tags: [newTag, modalMode === 'fork' ? 'Amélioration' : 'Nouveau'],
       likes: 0, forks: 0, isFork: modalMode === 'fork',
-      parentId: modalMode === 'fork' ? selectedPrompt.id : null,
-      parentAuthor: modalMode === 'fork' ? selectedPrompt.author : null
+      parentId: modalMode === 'fork' && selectedPrompt ? selectedPrompt.id : undefined,
+      parentAuthor: modalMode === 'fork' && selectedPrompt ? selectedPrompt.author : undefined
     };
     setPrompts([newPrompt, ...prompts]);
     setIsModalOpen(false);
   };
 
-  const handleResourceSubmit = (e) => {
+  const handleResourceSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     let accessValue = 'global';
     
@@ -501,7 +588,7 @@ const Dashboard = ({ user, onLogout, onOpenLegal }) => {
         accessValue = user.role === 'Admin' ? targetStruct : user.missionLocale;
     }
 
-    const newResource = {
+    const newResource: Resource = {
         id: Date.now(),
         title: resTitle,
         type: resType,
@@ -514,13 +601,13 @@ const Dashboard = ({ user, onLogout, onOpenLegal }) => {
     setIsModalOpen(false);
   };
 
-  const handleStructureSubmit = (e) => {
+  const handleStructureSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setStructures([...structures, { id: Date.now(), name: newStructName, city: newStructCity }]);
     setIsModalOpen(false);
   };
 
-  const handleUserSubmit = (e) => {
+  const handleUserSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setAdminUsers([...adminUsers, {
         id: Date.now(),
@@ -533,7 +620,7 @@ const Dashboard = ({ user, onLogout, onOpenLegal }) => {
     setIsModalOpen(false);
   };
 
-  const handleNavClick = (tab) => {
+  const handleNavClick = (tab: string) => {
     setCurrentTab(tab);
     setIsMobileMenuOpen(false);
   };
@@ -964,11 +1051,11 @@ const Dashboard = ({ user, onLogout, onOpenLegal }) => {
 };
 
 export default function App() {
-  const [currentUser, setCurrentUser] = useState(null);
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [isLegalOpen, setIsLegalOpen] = useState(false);
-  const [legalType, setLegalType] = useState('mentions'); // 'mentions' or 'privacy'
+  const [legalType, setLegalType] = useState<'mentions' | 'privacy'>('mentions'); 
 
-  const openLegal = (type) => {
+  const openLegal = (type: 'mentions' | 'privacy') => {
       setLegalType(type);
       setIsLegalOpen(true);
   }
