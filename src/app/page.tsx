@@ -12,7 +12,7 @@ import { createClient } from '@supabase/supabase-js';
 import { 
   BookOpen, Sparkles, GitFork, Users, Search, FileText, Video, Download, 
   ThumbsUp, MessageSquare, Copy, Plus, ArrowRight, Menu, X, Send, LogOut, 
-  Lock, Building2, Globe, UploadCloud, UserPlus, Trash2, Filter, Info, ShieldCheck
+  Lock, Building2, Globe, UploadCloud, UserPlus, Trash2, Filter, Info, ShieldCheck, FileIcon
 } from 'lucide-react';
 
 // --- CONFIGURATION SUPABASE ---
@@ -26,7 +26,7 @@ const supabaseAnonKey = (typeof process !== 'undefined' && process.env) ? proces
 // OPTION A : MODE APERÇU (Actif par défaut pour la démo)
 // ------------------------------------------------------
 // Commentez ou supprimez cette ligne si vous activez l'Option B
-/* const supabase: any = null;*/
+/* const supabase: any = null; */
 
 
 // OPTION B : MODE PRODUCTION (Vraie connexion)
@@ -247,6 +247,7 @@ const Dashboard = ({ user, onLogout, onOpenLegal }: DashboardProps) => {
   // États de formulaire
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState('');
+  const [selectedFile, setSelectedFile] = useState<File | null>(null); // Nouvel état pour le fichier
   
   // Data Fetching
   useEffect(() => {
@@ -260,7 +261,7 @@ const Dashboard = ({ user, onLogout, onOpenLegal }: DashboardProps) => {
 
     const fetchData = async () => {
       try {
-        // 1. Fetch Prompts (avec jointure profils)
+        // 1. Fetch Prompts
         const { data: pData, error: pError } = await supabase
           .from('prompts')
           .select(`*, profiles(full_name, avatar_url, role), structures(name)`)
@@ -284,17 +285,17 @@ const Dashboard = ({ user, onLogout, onOpenLegal }: DashboardProps) => {
           setPrompts(formattedPrompts);
         }
 
-        // 2. Fetch Resources (Correction du mapping type/file_type)
+        // 2. Fetch Resources
         const { data: rData } = await supabase.from('resources').select('*');
         if (rData) {
           const formattedResources = rData.map((r: any) => ({
             ...r,
-            type: r.file_type || 'pdf' // Mapping DB 'file_type' -> Front 'type'
+            type: r.file_type || 'pdf'
           }));
           setResources(formattedResources);
         }
 
-        // 3. Fetch Structures (Admin only mostly)
+        // 3. Fetch Structures
         const { data: sData } = await supabase.from('structures').select('*');
         if (sData) setStructures(sData);
         
@@ -317,7 +318,6 @@ const Dashboard = ({ user, onLogout, onOpenLegal }: DashboardProps) => {
     }
 
     try {
-      // Récupérer l'ID structure de l'user
       const { data: profile } = await supabase.from('profiles').select('structure_id').eq('id', user.id).single();
       
       const { error } = await supabase.from('prompts').insert({
@@ -325,31 +325,69 @@ const Dashboard = ({ user, onLogout, onOpenLegal }: DashboardProps) => {
           content, 
           tags: [tag], 
           user_id: user.id,
-          structure_id: profile?.structure_id // Lie le prompt à la ML de l'user
+          structure_id: profile?.structure_id
       });
       
       if (error) throw error;
-      window.location.reload(); // Refresh simple pour la démo
+      window.location.reload(); 
     } catch (err: any) {
       alert("Erreur lors de la création : " + err.message);
     }
   };
 
-  const handleCreateResource = async (title: string, type: string, category: string, scope: string, targetStructId?: string) => {
-      if (!supabase) { setIsModalOpen(false); return; }
+  const handleCreateResource = async (title: string, type: string, category: string, scope: string, file: File | null, targetStructId?: string) => {
+      if (!supabase) { 
+          // Mode Démo
+          alert("Mode démo : Fichier simulé ajouté.");
+          setIsModalOpen(false); 
+          return; 
+      }
       
-      // CORRECTION ICI : Mapping 'type' (frontend) -> 'file_type' (base de données)
+      let fileUrl = '';
+
+      // UPLOAD DU FICHIER SI PRÉSENT
+      if (file) {
+          try {
+              // Nom unique pour éviter les conflits
+              const fileExt = file.name.split('.').pop();
+              const fileName = `${Date.now()}_${Math.random().toString(36).substr(2, 9)}.${fileExt}`;
+              const filePath = `${user.id}/${fileName}`;
+
+              // 1. Upload vers le Bucket 'documents'
+              const { error: uploadError } = await supabase.storage
+                  .from('documents') // Assurez-vous d'avoir créé ce bucket public dans Supabase !
+                  .upload(filePath, file);
+
+              if (uploadError) throw uploadError;
+
+              // 2. Récupérer l'URL publique
+              const { data: urlData } = supabase.storage
+                  .from('documents')
+                  .getPublicUrl(filePath);
+              
+              fileUrl = urlData.publicUrl;
+
+          } catch (uploadError: any) {
+              alert("Erreur lors de l'upload du fichier : " + uploadError.message);
+              return;
+          }
+      } else {
+          // URL placeholder si pas de fichier (ex: lien externe, à implémenter plus tard)
+          fileUrl = 'https://placeholder.com';
+      }
+      
+      // INSERTION EN BASE DE DONNÉES
       const { error } = await supabase.from('resources').insert({
           title, 
-          file_type: type, // <-- Utilisation du bon nom de colonne
+          file_type: type,
           category, 
           access_scope: scope, 
           target_structure_id: scope === 'local' ? targetStructId : null,
-          file_url: 'https://placeholder.com', // Ici il faudrait gérer l'upload fichier
+          file_url: fileUrl,
           uploaded_by: user.id
       });
       
-      if (error) alert("Erreur ajout ressource: " + error.message);
+      if (error) alert("Erreur ajout ressource en base : " + error.message);
       else window.location.reload();
   };
 
@@ -394,7 +432,11 @@ const Dashboard = ({ user, onLogout, onOpenLegal }: DashboardProps) => {
                {currentTab === 'structures' && 'Gestion Structures'}
             </h1>
             <button 
-               onClick={() => { setModalMode(currentTab === 'structures' ? 'structure' : currentTab === 'resources' ? 'resource' : 'prompt'); setIsModalOpen(true); }}
+               onClick={() => { 
+                   setModalMode(currentTab === 'structures' ? 'structure' : currentTab === 'resources' ? 'resource' : 'prompt'); 
+                   setSelectedFile(null); // Reset file
+                   setIsModalOpen(true); 
+               }}
                className="bg-indigo-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 text-sm font-bold shadow-md hover:bg-indigo-700"
             >
                <Plus size={18} /> Ajouter
@@ -427,12 +469,18 @@ const Dashboard = ({ user, onLogout, onOpenLegal }: DashboardProps) => {
          {currentTab === 'resources' && (
             <div className="grid grid-cols-3 gap-6">
                {resources.map(r => (
-                  <div key={r.id} className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition-all">
+                  <div key={r.id} className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition-all relative group">
+                     {r.access !== 'global' && <span className="absolute top-2 right-2 bg-indigo-100 text-indigo-700 text-[10px] px-2 py-1 rounded font-bold">Local</span>}
                      <div className="flex gap-4">
                         <div className="bg-red-50 text-red-600 p-3 rounded-lg"><FileText /></div>
-                        <div>
-                           <h4 className="font-bold text-sm text-slate-800">{r.title}</h4>
-                           <span className="text-xs text-slate-500">{r.category} • {r.access}</span>
+                        <div className="flex-1 overflow-hidden">
+                           <h4 className="font-bold text-sm text-slate-800 truncate" title={r.title}>{r.title}</h4>
+                           <span className="text-xs text-slate-500 block mt-1">{r.category}</span>
+                           {r.file_url && r.file_url.startsWith('http') && (
+                               <a href={r.file_url} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:underline flex items-center gap-1 mt-2">
+                                   <Download size={12} /> Télécharger
+                               </a>
+                           )}
                         </div>
                      </div>
                   </div>
@@ -474,7 +522,7 @@ const Dashboard = ({ user, onLogout, onOpenLegal }: DashboardProps) => {
                   } else if (modalMode === 'structure') {
                      handleCreateStructure(formData.get('name') as string, formData.get('city') as string);
                   } else if (modalMode === 'resource') {
-                     handleCreateResource(formData.get('title') as string, 'pdf', 'Formation', 'global');
+                     handleCreateResource(formData.get('title') as string, 'pdf', 'Formation', 'global', selectedFile);
                   }
                }} className="space-y-4">
                   
@@ -495,7 +543,23 @@ const Dashboard = ({ user, onLogout, onOpenLegal }: DashboardProps) => {
                   {modalMode === 'resource' && (
                      <>
                         <input name="title" required placeholder="Titre du document" className="w-full border p-2 rounded" />
-                        <p className="text-xs text-slate-500">L'upload de fichier sera activé dans la version finale.</p>
+                        
+                        <div className="border-2 border-dashed border-slate-300 rounded-lg p-6 text-center hover:bg-slate-50 transition-colors cursor-pointer relative">
+                            <input 
+                                type="file" 
+                                className="absolute inset-0 opacity-0 cursor-pointer" 
+                                onChange={(e) => {
+                                    if(e.target.files && e.target.files[0]) setSelectedFile(e.target.files[0]);
+                                }}
+                            />
+                            <div className="flex flex-col items-center pointer-events-none">
+                                <UploadCloud className="text-slate-400 mb-2" size={32} />
+                                <span className="text-sm font-medium text-slate-600">
+                                    {selectedFile ? selectedFile.name : "Cliquez pour sélectionner un fichier"}
+                                </span>
+                                <span className="text-xs text-slate-400 mt-1">PDF, Vidéo ou Slides</span>
+                            </div>
+                        </div>
                      </>
                   )}
 
