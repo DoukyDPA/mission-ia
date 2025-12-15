@@ -1,6 +1,6 @@
 "use client";
 import React, { useState, useEffect } from 'react';
-// IMPORT DÉSACTIVÉ POUR L'APERÇU (À RÉACTIVER EN LOCAL)
+// IMPORT DÉSACTIVÉ POUR L'APERÇU (À RÉACTIVER EN LOCAL POUR LA PROD)
 import { createClient } from '@supabase/supabase-js';
 import { 
   BookOpen, Sparkles, GitFork, Users, Search, FileText, Video, Download, 
@@ -9,19 +9,16 @@ import {
 } from 'lucide-react';
 
 // --- CONFIGURATION SUPABASE ---
-// Vérification de sécurité pour éviter les erreurs côté client si process n'est pas défini
 const supabaseUrl = (typeof process !== 'undefined' && process.env) ? process.env.NEXT_PUBLIC_SUPABASE_URL : '';
 const supabaseAnonKey = (typeof process !== 'undefined' && process.env) ? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY : '';
 
-// CONNEXION ACTIVÉE (Code commenté pour l'aperçu - À DÉCOMMENTER EN PROD)
-
+// CONNEXION DÉSACTIVÉE POUR L'APERÇU (À DÉCOMMENTER EN PROD)
 const supabase = (supabaseUrl && supabaseAnonKey) 
   // @ts-ignore
   ? createClient(supabaseUrl, supabaseAnonKey) 
   : null;
 
-
-// Pour l'aperçu, on simule l'absence de connexion
+// Pour l'aperçu Canvas, on force le mode démo
 const supabase: any = null;
 
 // --- TYPES ---
@@ -35,7 +32,6 @@ interface Prompt {
 }
 
 // --- DONNÉES FICTIVES (FALLBACK) ---
-// Utilisées uniquement si la connexion Supabase échoue ou si les tables sont vides
 const MOCK_STRUCTURES: Structure[] = [
   { id: 1, name: "Mission Locale de Lyon", city: "Lyon" },
   { id: 2, name: "Mission Locale de Paris", city: "Paris" }
@@ -45,10 +41,10 @@ const MOCK_USERS_LIST: User[] = [
   { id: 2, email: "admin@ia.fr", name: "Admin Système", role: "Admin", missionLocale: "National", avatar: "AD" }
 ];
 const MOCK_RESOURCES: Resource[] = [
-  { id: 1, title: "Guide Demo (Pas de DB)", type: "pdf", date: "12/12/2023", category: "Formation", access: "global" }
+  { id: 1, title: "Guide Démo (Mode Preview)", type: "pdf", date: "12/12/2023", category: "Formation", access: "global" }
 ];
 const MOCK_PROMPTS: Prompt[] = [
-  { id: 1, title: "Prompt Demo", content: "Ceci est un exemple car Supabase n'est pas connecté.", author: "Système", role: "Bot", avatar: "AI", missionLocale: "National", date: "Maintenant", tags: ["Demo"], likes: 0, forks: 0, isFork: false }
+  { id: 1, title: "Prompt Démo", content: "Ceci est un exemple car Supabase n'est pas connecté dans l'aperçu.", author: "Système", role: "Bot", avatar: "AI", missionLocale: "National", date: "Maintenant", tags: ["Demo"], likes: 0, forks: 0, isFork: false }
 ];
 
 // --- COMPOSANTS UI ---
@@ -76,9 +72,8 @@ const LoginPage = ({ onLogin }: { onLogin: (u: User) => void }) => {
     setLoading(true);
     setError('');
 
-    // Si Supabase n'est pas initialisé (ex: variables manquantes), fallback sur le mock
     if (!supabase) {
-      console.warn("Supabase non connecté, utilisation du mode démo.");
+      // Fallback Mock Login
       const mockUser = MOCK_USERS_LIST.find(u => u.email === email);
       if (mockUser) onLogin(mockUser);
       else setError("Utilisateur démo introuvable (essayez admin@ia.fr)");
@@ -87,15 +82,11 @@ const LoginPage = ({ onLogin }: { onLogin: (u: User) => void }) => {
     }
 
     try {
-      // VRAI LOGIN SUPABASE
       const { data, error: authError } = await supabase.auth.signInWithPassword({ email, password });
       
-      if (authError) {
-        throw authError;
-      }
+      if (authError) throw authError;
 
       if (data.user) {
-        // Récupérer le profil étendu
         const { data: profile, error: profileError } = await supabase
           .from('profiles')
           .select('*, structures(name)')
@@ -104,7 +95,6 @@ const LoginPage = ({ onLogin }: { onLogin: (u: User) => void }) => {
         
         if (profileError) {
            console.error("Erreur récupération profil:", profileError);
-           // Fallback minimal si le profil n'existe pas encore
            onLogin({
              id: data.user.id,
              email: data.user.email || '',
@@ -139,7 +129,8 @@ const LoginPage = ({ onLogin }: { onLogin: (u: User) => void }) => {
         <p className="text-center text-slate-500 mb-6 text-sm">Connectez-vous pour accéder aux ressources</p>
         
         {error && <div className="bg-red-50 text-red-600 p-3 rounded-lg text-sm mb-4">{error}</div>}
-        
+        {!supabase && <div className="bg-amber-50 text-amber-700 p-3 rounded-lg text-xs mb-4 border border-amber-200">Mode Démo (Aperçu) : Base de données déconnectée.</div>}
+
         <form onSubmit={handleLogin} className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">Email</label>
@@ -159,6 +150,16 @@ const LoginPage = ({ onLogin }: { onLogin: (u: User) => void }) => {
             {loading ? 'Connexion...' : 'Se connecter'}
           </button>
         </form>
+        
+        {!supabase && (
+           <div className="mt-6 pt-4 border-t border-slate-100 text-center">
+             <p className="text-xs text-slate-400 mb-2">Comptes Démo (Aperçu)</p>
+             <div className="flex gap-2 justify-center">
+                <button onClick={() => {setEmail('jean@ml.fr'); setPassword('demo');}} className="text-xs bg-slate-100 px-2 py-1 rounded hover:bg-slate-200">Jean (Conseiller)</button>
+                <button onClick={() => {setEmail('admin@ia.fr'); setPassword('demo');}} className="text-xs bg-slate-800 text-white px-2 py-1 rounded hover:bg-slate-700">Admin</button>
+             </div>
+           </div>
+        )}
       </div>
     </div>
   );
@@ -171,14 +172,12 @@ const Dashboard = ({ user, onLogout }: { user: User, onLogout: () => void }) => 
   const [resources, setResources] = useState<Resource[]>([]);
   const [structures, setStructures] = useState<Structure[]>([]);
   
-  // États de formulaire
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState('');
   
   // Data Fetching
   useEffect(() => {
     if (!supabase) {
-      // Fallback si pas de connexion
       setPrompts(MOCK_PROMPTS);
       setResources(MOCK_RESOURCES);
       setStructures(MOCK_STRUCTURES);
@@ -187,7 +186,6 @@ const Dashboard = ({ user, onLogout }: { user: User, onLogout: () => void }) => 
 
     const fetchData = async () => {
       try {
-        // 1. Fetch Prompts (avec jointure profils)
         const { data: pData, error: pError } = await supabase
           .from('prompts')
           .select(`*, profiles(full_name, avatar_url, role), structures(name)`)
@@ -211,11 +209,9 @@ const Dashboard = ({ user, onLogout }: { user: User, onLogout: () => void }) => 
           setPrompts(formattedPrompts);
         }
 
-        // 2. Fetch Resources
         const { data: rData } = await supabase.from('resources').select('*');
         if (rData) setResources(rData);
 
-        // 3. Fetch Structures (Admin only mostly)
         const { data: sData } = await supabase.from('structures').select('*');
         if (sData) setStructures(sData);
         
@@ -231,50 +227,44 @@ const Dashboard = ({ user, onLogout }: { user: User, onLogout: () => void }) => 
   
   const handleCreatePrompt = async (title: string, content: string, tag: string) => {
     if (!supabase) {
-        // Mock add
         setPrompts([{ id: Date.now(), title, content, author: user.name, role: user.role, avatar: user.avatar, missionLocale: user.missionLocale, date: "À l'instant", tags: [tag], likes: 0, forks: 0, isFork: false }, ...prompts]);
         setIsModalOpen(false);
         return;
     }
 
     try {
-      // Récupérer l'ID structure de l'user
       const { data: profile } = await supabase.from('profiles').select('structure_id').eq('id', user.id).single();
-      
       const { error } = await supabase.from('prompts').insert({
           title, 
           content, 
           tags: [tag], 
           user_id: user.id,
-          structure_id: profile?.structure_id // Lie le prompt à la ML de l'user
+          structure_id: profile?.structure_id
       });
-      
       if (error) throw error;
-      window.location.reload(); // Refresh simple pour la démo
+      window.location.reload(); 
     } catch (err: any) {
-      alert("Erreur lors de la création : " + err.message);
+      alert("Erreur : " + err.message);
     }
   };
 
   const handleCreateResource = async (title: string, type: string, category: string, scope: string, targetStructId?: string) => {
       if (!supabase) { setIsModalOpen(false); return; }
-      
       const { error } = await supabase.from('resources').insert({
           title, type, category, 
           access_scope: scope, 
           target_structure_id: scope === 'local' ? targetStructId : null,
-          file_url: 'https://placeholder.com', // Ici il faudrait gérer l'upload fichier
+          file_url: 'https://placeholder.com', 
           uploaded_by: user.id
       });
-      
-      if (error) alert("Erreur ajout ressource: " + error.message);
+      if (error) alert("Erreur : " + error.message);
       else window.location.reload();
   };
 
   const handleCreateStructure = async (name: string, city: string) => {
       if (!supabase) { setIsModalOpen(false); return; }
       const { error } = await supabase.from('structures').insert({ name, city });
-      if (error) alert("Erreur création structure: " + error.message);
+      if (error) alert("Erreur : " + error.message);
       else window.location.reload();
   }
 
