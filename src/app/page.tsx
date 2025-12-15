@@ -2,12 +2,12 @@
 import React, { useState, useEffect, useCallback } from 'react';
 
 // ==================================================================================
-// ⚠️ INSTRUCTIONS POUR LE DÉPLOIEMENT (PRODUCTION) ⚠️
+// ⚠️ VERSION PRODUCTION (PRÊTE POUR VERCEL)
+// Assurez-vous d'avoir lancé : npm install @supabase/supabase-js
 // ==================================================================================
-// 1. Installez Supabase localement : npm install @supabase/supabase-js
-// 2. DÉCOMMENTEZ la ligne d'import ci-dessous :
+
+// 1. IMPORT ACTIF
 import { createClient } from '@supabase/supabase-js';
-// ==================================================================================
 
 import { 
   BookOpen, Sparkles, GitFork, Users, Search, FileText, Video, Download, 
@@ -20,27 +20,15 @@ import {
 const supabaseUrl = (typeof process !== 'undefined' && process.env) ? process.env.NEXT_PUBLIC_SUPABASE_URL : '';
 const supabaseAnonKey = (typeof process !== 'undefined' && process.env) ? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY : '';
 
-// ==================================================================================
-// 3. INITIALISATION DU CLIENT (CHOISISSEZ UNE SEULE OPTION)
-// ==================================================================================
-
-// OPTION A : MODE APERÇU (Actif par défaut pour la démo)
-/* const supabase: any = null; */
-
-// OPTION B : MODE PRODUCTION (Vraie connexion)
-
+// 2. CLIENT ACTIF (Mode Production)
+// Si les variables manquent, cela ne plantera pas mais supabase vaudra null.
 const supabase = (supabaseUrl && supabaseAnonKey) 
-  // @ts-ignore
   ? createClient(supabaseUrl, supabaseAnonKey) 
   : null;
-
-// ==================================================================================
-
 
 // --- TYPES ---
 interface Structure { id: string | number; name: string; city: string; }
 interface User { id: string | number; email: string; name: string; role: string; missionLocale: string; avatar: string; }
-// Ajout de 'description' pour le contenu texte
 interface Resource { id: string | number; title: string; type: 'file' | 'text' | 'link' | 'pdf' | 'video'; date: string; size?: string; category: string; access: string; file_url?: string; description?: string; }
 interface Prompt { 
   id: string | number; title: string; content: string; author: string; role: string; 
@@ -53,18 +41,10 @@ const MOCK_STRUCTURES: Structure[] = [
   { id: 1, name: "Mission Locale de Lyon", city: "Lyon" },
   { id: 2, name: "Mission Locale de Paris", city: "Paris" }
 ];
-const MOCK_USERS_LIST: User[] = [
-  { id: 1, email: "jean@ml.fr", name: "Jean Dupont", role: "Conseiller", missionLocale: "Mission Locale de Lyon", avatar: "JD" },
-  { id: 2, email: "admin@ia.fr", name: "Admin Système", role: "Admin", missionLocale: "National", avatar: "AD" }
-];
-const MOCK_RESOURCES: Resource[] = [
-  { id: 1, title: "Guide de démarrage (PDF)", type: "file", date: "12/12/2023", category: "Formation", access: "global", file_url: "#" },
-  { id: 2, title: "Outil IA recommandé", type: "link", date: "14/12/2023", category: "Veille", access: "global", file_url: "https://openai.com" },
-  { id: 3, title: "Note de synthèse interne", type: "text", date: "15/12/2023", category: "Interne", access: "global", description: "Voici les points clés de la réunion du 15 décembre concernant l'adoption de l'IA..." }
-];
 const MOCK_PROMPTS: Prompt[] = [
   { id: 1, title: "Prompt Démo", content: "Ceci est un exemple car Supabase n'est pas connecté.", author: "Système", role: "Bot", avatar: "AI", missionLocale: "National", date: "Maintenant", tags: ["Administratif"], likes: 0, forks: 0, isFork: false }
 ];
+const MOCK_RESOURCES: Resource[] = []; // Vide par défaut en mode fallback
 
 // --- COMPOSANTS UI ---
 
@@ -123,10 +103,14 @@ const LoginPage = ({ onLogin, onOpenLegal }: LoginPageProps) => {
     setLoading(true);
     setError('');
 
+    // Fallback Mock Login si pas de Supabase
     if (!supabase) {
-      const mockUser = MOCK_USERS_LIST.find(u => u.email === email);
-      if (mockUser) onLogin(mockUser);
-      else setError("Utilisateur démo introuvable (essayez admin@ia.fr)");
+      console.warn("Supabase non connecté.");
+      if (email === 'admin@ia.fr') {
+         onLogin({ id: 999, email, name: 'Admin', role: 'Admin', missionLocale: 'National', avatar: 'AD' });
+      } else {
+         setError("Base de données non connectée. (Mode Prod actif mais variables manquantes ?)");
+      }
       setLoading(false);
       return;
     }
@@ -137,6 +121,7 @@ const LoginPage = ({ onLogin, onOpenLegal }: LoginPageProps) => {
 
       if (data.user) {
         const { data: profile } = await supabase.from('profiles').select('*, structures(name)').eq('id', data.user.id).single();
+        // Si profil pas encore créé (délai trigger), on crée un user temporaire
         const userObj: User = {
              id: data.user.id,
              email: data.user.email || '',
@@ -181,16 +166,6 @@ const LoginPage = ({ onLogin, onOpenLegal }: LoginPageProps) => {
             {loading ? 'Connexion...' : 'Se connecter'}
           </button>
         </form>
-        
-        {!supabase && (
-           <div className="mt-6 pt-4 border-t border-slate-100 text-center">
-             <p className="text-xs text-slate-400 mb-2">Comptes Démo (Aperçu)</p>
-             <div className="flex gap-2 justify-center">
-                <button onClick={() => {setEmail('jean@ml.fr'); setPassword('demo');}} className="text-xs bg-slate-100 px-2 py-1 rounded hover:bg-slate-200">Jean (Conseiller)</button>
-                <button onClick={() => {setEmail('admin@ia.fr'); setPassword('demo');}} className="text-xs bg-slate-800 text-white px-2 py-1 rounded hover:bg-slate-700">Admin</button>
-             </div>
-           </div>
-        )}
       </div>
       <footer className="mt-8 text-center text-xs text-slate-400 space-y-2">
          <p>© 2024 Réseau des Missions Locales</p>
@@ -220,20 +195,18 @@ const Dashboard = ({ user, onLogout, onOpenLegal }: DashboardProps) => {
   const [modalMode, setModalMode] = useState('');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   
-  // États spécifiques pour les modales
+  // États formulaires
   const [promptFormTitle, setPromptFormTitle] = useState('');
   const [promptFormContent, setPromptFormContent] = useState('');
   const [promptFormTag, setPromptFormTag] = useState('Administratif');
   const [parentPromptId, setParentPromptId] = useState<string | number | null>(null);
 
-  // Etats pour les ressources (Fichier, Texte, Lien)
+  // Etats ressources
   const [resFormType, setResFormType] = useState<'file' | 'text' | 'link'>('file');
-  const [resFormContent, setResFormContent] = useState(''); // Pour le texte ou l'URL
-  
-  // Etat pour la lecture d'une ressource texte
+  const [resFormContent, setResFormContent] = useState('');
   const [viewingResource, setViewingResource] = useState<Resource | null>(null);
 
-  // Fonction centralisée pour recharger les données SANS recharger la page
+  // REFRESH DATA
   const refreshData = useCallback(async () => {
     if (!supabase) return; 
 
@@ -252,7 +225,7 @@ const Dashboard = ({ user, onLogout, onOpenLegal }: DashboardProps) => {
         const { data: rData } = await supabase.from('resources').select('*').order('created_at', { ascending: false });
         if (rData) setResources(rData.map((r: any) => ({ 
             ...r, 
-            type: r.file_type || 'file' // Mapping DB
+            type: r.file_type || 'file' 
         })));
         const { data: sData } = await supabase.from('structures').select('*');
         if (sData) setStructures(sData);
@@ -261,11 +234,9 @@ const Dashboard = ({ user, onLogout, onOpenLegal }: DashboardProps) => {
     }
   }, []);
 
-  // Initial Load
   useEffect(() => {
     if (!supabase) {
       setPrompts(MOCK_PROMPTS);
-      setResources(MOCK_RESOURCES);
       setStructures(MOCK_STRUCTURES);
     } else {
       refreshData();
@@ -276,10 +247,8 @@ const Dashboard = ({ user, onLogout, onOpenLegal }: DashboardProps) => {
 
   const prepareCreatePrompt = () => {
       setModalMode('prompt');
-      setPromptFormTitle('');
-      setPromptFormContent('');
-      setPromptFormTag('Administratif');
-      setParentPromptId(null);
+      setPromptFormTitle(''); setPromptFormContent('');
+      setPromptFormTag('Administratif'); setParentPromptId(null);
       setIsModalOpen(true);
   }
 
@@ -293,15 +262,7 @@ const Dashboard = ({ user, onLogout, onOpenLegal }: DashboardProps) => {
   }
   
   const handleCreatePrompt = async () => {
-    if (!supabase) {
-        const newPrompt: Prompt = { 
-            id: Date.now(), title: promptFormTitle, content: promptFormContent, 
-            author: user.name, role: user.role, avatar: user.avatar, missionLocale: user.missionLocale, date: "À l'instant", tags: [promptFormTag], likes: 0, forks: 0, isFork: !!parentPromptId, parentId: parentPromptId 
-        };
-        setPrompts([newPrompt, ...prompts]);
-        setIsModalOpen(false);
-        return;
-    }
+    if (!supabase) return; // Pas de mock save ici pour simplifier
 
     try {
       const { data: profile } = await supabase.from('profiles').select('structure_id').eq('id', user.id).single();
@@ -317,28 +278,19 @@ const Dashboard = ({ user, onLogout, onOpenLegal }: DashboardProps) => {
     }
   };
 
-  const handleCreateResource = async (title: string, category: string, scope: string, targetStructId?: string) => {
-      // Préparation des données selon le type
+  // Correction de la signature pour inclure 'file'
+  const handleCreateResource = async (title: string, category: string, scope: string, file: File | null, targetStructId?: string) => {
+      if (!supabase) return;
+      
       let finalUrl = '';
       let description = '';
       let type = resFormType;
 
-      if (!supabase) { 
-          // Mode Démo
-          if (resFormType === 'text') description = resFormContent;
-          if (resFormType === 'link') finalUrl = resFormContent;
-          
-          setResources([{ id: Date.now(), title, type, category, access: scope, date: "À l'instant", file_url: finalUrl, description }, ...resources]);
-          setIsModalOpen(false); 
-          return; 
-      }
-      
-      // Logique Prod
-      if (resFormType === 'file' && selectedFile) {
+      if (resFormType === 'file' && file) {
           try {
-              const fileExt = selectedFile.name.split('.').pop();
+              const fileExt = file.name.split('.').pop();
               const fileName = `${user.id}/${Date.now()}.${fileExt}`;
-              const { error: uploadError } = await supabase.storage.from('documents').upload(fileName, selectedFile);
+              const { error: uploadError } = await supabase.storage.from('documents').upload(fileName, file);
               if (uploadError) throw uploadError;
               const { data: urlData } = supabase.storage.from('documents').getPublicUrl(fileName);
               finalUrl = urlData.publicUrl;
@@ -347,9 +299,9 @@ const Dashboard = ({ user, onLogout, onOpenLegal }: DashboardProps) => {
               return;
           }
       } else if (resFormType === 'link') {
-          finalUrl = resFormContent; // L'URL est stockée dans file_url
+          finalUrl = resFormContent; 
       } else if (resFormType === 'text') {
-          description = resFormContent; // Le texte est stocké dans description
+          description = resFormContent;
       }
       
       const { error } = await supabase.from('resources').insert({
@@ -367,7 +319,7 @@ const Dashboard = ({ user, onLogout, onOpenLegal }: DashboardProps) => {
 
   const handleDeleteResource = async (id: string | number) => {
       if(!confirm("Êtes-vous sûr de vouloir supprimer ce document ?")) return;
-      if (!supabase) { setResources(resources.filter(r => r.id !== id)); return; }
+      if (!supabase) return;
       try {
           const { error } = await supabase.from('resources').delete().eq('id', id);
           if (error) throw error;
@@ -376,7 +328,7 @@ const Dashboard = ({ user, onLogout, onOpenLegal }: DashboardProps) => {
   }
 
   const handleCreateStructure = async (name: string, city: string) => {
-      if (!supabase) { setIsModalOpen(false); return; }
+      if (!supabase) return;
       const { error } = await supabase.from('structures').insert({ name, city });
       if (error) alert("Erreur : " + error.message);
       else { await refreshData(); setIsModalOpen(false); }
@@ -470,7 +422,6 @@ const Dashboard = ({ user, onLogout, onOpenLegal }: DashboardProps) => {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                {resources.map(r => (
                   <div key={r.id} className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition-all relative group flex flex-col justify-between">
-                     {/* BADGE LOCAL/GLOBAL */}
                      {r.access !== 'global' && <span className="absolute top-2 right-2 bg-indigo-100 text-indigo-700 text-[10px] px-2 py-1 rounded font-bold">Local</span>}
                      
                      <div className="flex gap-4 mb-4">
@@ -484,7 +435,6 @@ const Dashboard = ({ user, onLogout, onOpenLegal }: DashboardProps) => {
                      </div>
 
                      <div className="flex items-center justify-between border-t border-slate-50 pt-3">
-                        {/* ACTION PRINCIPALE SELON TYPE */}
                         {r.type === 'link' && r.file_url && (
                             <a href={r.file_url} target="_blank" rel="noopener noreferrer" className="text-xs font-medium text-emerald-600 hover:underline flex items-center gap-1">
                                 <ExternalLink size={12} /> Visiter
@@ -501,7 +451,6 @@ const Dashboard = ({ user, onLogout, onOpenLegal }: DashboardProps) => {
                             </a>
                         )}
 
-                        {/* BOUTON SUPPRIMER POUR ADMIN */}
                         {user.role === 'Admin' && (
                             <button onClick={() => handleDeleteResource(r.id)} className="text-xs text-red-400 hover:text-red-600 flex items-center gap-1">
                                 <Trash2 size={12} />
@@ -556,7 +505,8 @@ const Dashboard = ({ user, onLogout, onOpenLegal }: DashboardProps) => {
                   } else if (modalMode === 'structure') {
                      handleCreateStructure(formData.get('name') as string, formData.get('city') as string);
                   } else if (modalMode === 'resource') {
-                     handleCreateResource(formData.get('title') as string, formData.get('category') as string, 'global', selectedFile, undefined);
+                     // CORRECTION : Appel avec les bons arguments pour TS
+                     handleCreateResource(formData.get('title') as string, formData.get('category') as string, 'global', selectedFile);
                   }
                }} className="space-y-4">
                   
