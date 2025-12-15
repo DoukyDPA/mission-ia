@@ -20,7 +20,18 @@ const supabaseUrl = (typeof process !== 'undefined' && process.env) ? process.en
 const supabaseAnonKey = (typeof process !== 'undefined' && process.env) ? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY : '';
 
 // ==================================================================================
-// 3. DÉCOMMENTEZ LE BLOC DE CONNEXION CI-DESSOUS POUR LA PRODUCTION :
+// 3. INITIALISATION DU CLIENT (CHOISISSEZ UNE SEULE OPTION)
+// ==================================================================================
+
+// OPTION A : MODE APERÇU (Actif par défaut pour la démo)
+// ------------------------------------------------------
+// Commentez ou supprimez cette ligne si vous activez l'Option B
+/* const supabase: any = null;*/
+
+
+// OPTION B : MODE PRODUCTION (Vraie connexion)
+// ------------------------------------------------------
+// Décommentez ce bloc UNIQUEMENT si vous avez commenté l'Option A
 
 const supabase = (supabaseUrl && supabaseAnonKey) 
   // @ts-ignore
@@ -29,8 +40,6 @@ const supabase = (supabaseUrl && supabaseAnonKey)
 
 // ==================================================================================
 
-// Pour l'aperçu ici, on force le mode sans connexion pour éviter le crash
-/* const supabase: any = null;*/
 
 // --- TYPES ---
 interface Structure { id: string | number; name: string; city: string; }
@@ -229,9 +238,15 @@ const Dashboard = ({ user, onLogout }: { user: User, onLogout: () => void }) => 
           setPrompts(formattedPrompts);
         }
 
-        // 2. Fetch Resources
+        // 2. Fetch Resources (Correction du mapping type/file_type)
         const { data: rData } = await supabase.from('resources').select('*');
-        if (rData) setResources(rData);
+        if (rData) {
+          const formattedResources = rData.map((r: any) => ({
+            ...r,
+            type: r.file_type || 'pdf' // Mapping DB 'file_type' -> Front 'type'
+          }));
+          setResources(formattedResources);
+        }
 
         // 3. Fetch Structures (Admin only mostly)
         const { data: sData } = await supabase.from('structures').select('*');
@@ -277,8 +292,11 @@ const Dashboard = ({ user, onLogout }: { user: User, onLogout: () => void }) => 
   const handleCreateResource = async (title: string, type: string, category: string, scope: string, targetStructId?: string) => {
       if (!supabase) { setIsModalOpen(false); return; }
       
+      // CORRECTION ICI : Mapping 'type' (frontend) -> 'file_type' (base de données)
       const { error } = await supabase.from('resources').insert({
-          title, type, category, 
+          title, 
+          file_type: type, // <-- Utilisation du bon nom de colonne
+          category, 
           access_scope: scope, 
           target_structure_id: scope === 'local' ? targetStructId : null,
           file_url: 'https://placeholder.com', // Ici il faudrait gérer l'upload fichier
