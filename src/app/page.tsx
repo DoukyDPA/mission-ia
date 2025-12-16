@@ -47,6 +47,7 @@ interface Prompt {
   likes: number; forks: number; isFork: boolean; parentId?: string | number | null; parentAuthor?: string;
   user_id?: string | number; 
 }
+interface AllowedDomain { id: string | number; domain: string; structure_id?: string | number | null; structure_name?: string; }
 
 // --- DONNÉES FICTIVES (FALLBACK) ---
 const MOCK_STRUCTURES: Structure[] = [
@@ -61,6 +62,10 @@ const MOCK_RESOURCES: Resource[] = [];
 const MOCK_USERS_LIST: User[] = [
   { id: 1, email: "jean@ml.fr", name: "Jean Dupont", role: "Conseiller", missionLocale: "Mission Locale de Lyon", avatar: "JD", structure_id: 1 },
   { id: 2, email: "admin@ia.fr", name: "Admin Système", role: "Admin", missionLocale: "National", avatar: "AD" }
+];
+const MOCK_ALLOWED_DOMAINS: AllowedDomain[] = [
+  { id: 'demo-1', domain: 'missionlocale.fr', structure_id: 1, structure_name: 'Mission Locale de Lyon' },
+  { id: 'demo-2', domain: 'cbe-sud94.org', structure_id: 2, structure_name: 'Mission Locale de Paris' }
 ];
 
 // --- COMPOSANTS UI ---
@@ -107,18 +112,28 @@ const Modal = ({ isOpen, onClose, title, children }: ModalProps) => {
 interface LoginPageProps {
   onLogin: (u: User) => void;
   onOpenLegal: (type: 'mentions' | 'privacy') => void;
+  allowedDomains: AllowedDomain[];
 }
 
-const LoginPage = ({ onLogin, onOpenLegal }: LoginPageProps) => {
+const LoginPage = ({ onLogin, onOpenLegal, allowedDomains }: LoginPageProps) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [fullName, setFullName] = useState('');
+  const [mode, setMode] = useState<'login' | 'register'>('login');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [infoMessage, setInfoMessage] = useState('');
+
+  const findAllowedDomain = (targetEmail: string) => {
+    const normalized = targetEmail.toLowerCase();
+    return allowedDomains.find(d => normalized.endsWith(d.domain.toLowerCase()));
+  };
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError('');
+    setInfoMessage('');
 
     // Fallback Mock Login si pas de Supabase
     if (!supabase) {
@@ -156,34 +171,145 @@ const LoginPage = ({ onLogin, onOpenLegal }: LoginPageProps) => {
     }
   };
 
+  const handleRegister = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError('');
+    setInfoMessage('');
+
+    const matchingDomain = findAllowedDomain(email);
+    if (!matchingDomain) {
+      setError("Votre email n'est pas autorisé. Contactez un administrateur pour ajouter votre domaine.");
+      setLoading(false);
+      return;
+    }
+
+    if (!supabase) {
+      onLogin({
+        id: Date.now(),
+        email,
+        name: fullName || email.split('@')[0],
+        role: 'Conseiller',
+        missionLocale: matchingDomain.structure_name || 'National',
+        avatar: (fullName || email).substring(0, 2).toUpperCase(),
+        structure_id: matchingDomain.structure_id || undefined
+      });
+      setLoading(false);
+      return;
+    }
+
+    try {
+      const { data, error: signUpError } = await supabase.auth.signUp({ email, password });
+      if (signUpError) throw signUpError;
+
+      const newUserId = data.user?.id;
+      if (newUserId) {
+        const profilePayload: any = {
+          id: newUserId,
+          email,
+          full_name: fullName || email.split('@')[0],
+          role: 'Conseiller',
+          structure_id: matchingDomain.structure_id || null
+        };
+        await supabase.from('profiles').upsert(profilePayload);
+      }
+
+      if (data.session && data.user) {
+        const { data: profile } = await supabase.from('profiles').select('*, structures(name)').eq('id', data.user.id).single();
+        const missionLocale = profile?.structures?.name || matchingDomain.structure_name || 'National';
+        const displayName = profile?.full_name || fullName || email.split('@')[0];
+        onLogin({
+          id: data.user.id,
+          email,
+          name: displayName,
+          role: profile?.role || 'Conseiller',
+          missionLocale,
+          avatar: displayName.substring(0, 2).toUpperCase(),
+          structure_id: profile?.structure_id
+        });
+      } else {
+        setInfoMessage("Compte créé ! Vérifiez vos emails pour confirmer votre inscription.");
+      }
+    } catch (err: any) {
+      setError(err.message || "Erreur d'inscription");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col justify-center items-center p-4">
       <div className="bg-white p-8 rounded-2xl shadow-xl w-full max-w-md border border-slate-100">
         <h1 className="text-2xl font-bold text-slate-900 mb-2 text-center">MissionIA</h1>
-        <p className="text-center text-slate-500 mb-6 text-sm">Connectez-vous pour accéder aux ressources</p>
-        
+        <p className="text-center text-slate-500 mb-3 text-sm">Connectez-vous pour accéder aux ressources</p>
+        <div className="flex items-center justify-center gap-2 mb-4">
+          <button
+            onClick={() => { setMode('login'); setError(''); setInfoMessage(''); }}
+            className={`text-sm font-semibold px-3 py-1 rounded ${mode === 'login' ? 'bg-indigo-50 text-indigo-700' : 'text-slate-500 hover:text-indigo-600'}`}
+          >
+            Connexion
+          </button>
+          <button
+            onClick={() => { setMode('register'); setError(''); setInfoMessage(''); }}
+            className={`text-sm font-semibold px-3 py-1 rounded ${mode === 'register' ? 'bg-indigo-50 text-indigo-700' : 'text-slate-500 hover:text-indigo-600'}`}
+          >
+            Créer un compte
+          </button>
+        </div>
+
         {error && <div className="bg-red-50 text-red-600 p-3 rounded-lg text-sm mb-4">{error}</div>}
+        {infoMessage && <div className="bg-emerald-50 text-emerald-700 p-3 rounded-lg text-sm mb-4">{infoMessage}</div>}
         {!supabase && <div className="bg-amber-50 text-amber-700 p-3 rounded-lg text-xs mb-4 border border-amber-200">Mode Aperçu (Sans connexion)</div>}
-        
-        <form onSubmit={handleLogin} className="space-y-4">
+
+        <form onSubmit={mode === 'login' ? handleLogin : handleRegister} className="space-y-4">
+          {mode === 'register' && (
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Nom complet</label>
+              <div className="relative">
+                <Users className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                <input
+                  type="text"
+                  value={fullName}
+                  onChange={e => setFullName(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2.5 rounded-lg border border-slate-300 focus:ring-2 focus:ring-indigo-500 outline-none"
+                  placeholder="Jean Dupont"
+                  required
+                />
+              </div>
+            </div>
+          )}
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">Email</label>
             <div className="relative">
               <Users className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-              <input type="email" value={email} onChange={e => setEmail(e.target.value)} className="w-full pl-10 pr-4 py-2.5 rounded-lg border border-slate-300 focus:ring-2 focus:ring-indigo-500 outline-none" placeholder="nom@missionlocale.fr" />
+              <input type="email" value={email} onChange={e => setEmail(e.target.value)} required className="w-full pl-10 pr-4 py-2.5 rounded-lg border border-slate-300 focus:ring-2 focus:ring-indigo-500 outline-none" placeholder="nom@missionlocale.fr" />
             </div>
           </div>
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">Mot de passe</label>
             <div className="relative">
               <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-              <input type="password" value={password} onChange={e => setPassword(e.target.value)} className="w-full pl-10 pr-4 py-2.5 rounded-lg border border-slate-300 focus:ring-2 focus:ring-indigo-500 outline-none" placeholder="••••••••" />
+              <input type="password" value={password} onChange={e => setPassword(e.target.value)} required className="w-full pl-10 pr-4 py-2.5 rounded-lg border border-slate-300 focus:ring-2 focus:ring-indigo-500 outline-none" placeholder="••••••••" />
             </div>
           </div>
           <button disabled={loading} className="w-full bg-indigo-600 text-white font-bold py-2.5 rounded-lg hover:bg-indigo-700 transition-colors shadow-md disabled:opacity-50">
-            {loading ? 'Connexion...' : 'Se connecter'}
+            {loading ? (mode === 'login' ? 'Connexion...' : 'Inscription...') : (mode === 'login' ? 'Se connecter' : "S'inscrire")}
           </button>
         </form>
+
+        <div className="mt-6 text-xs text-slate-500 bg-slate-50 border border-slate-100 rounded-lg p-3 space-y-1">
+          <p className="font-semibold text-slate-600 flex items-center gap-2"><Globe size={14}/> Domaines autorisés</p>
+          {allowedDomains.length > 0 ? (
+            <ul className="list-disc list-inside space-y-1">
+              {allowedDomains.map(d => (
+                <li key={d.id}>{d.domain} {d.structure_name ? `(structure: ${d.structure_name})` : ''}</li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-[11px] text-slate-500">Aucun domaine autorisé n'a encore été configuré par l'administrateur.</p>
+          )}
+          {mode === 'register' && <p className="text-[11px] text-slate-500">Si votre email n'appartient pas à l'un de ces domaines, contactez votre administrateur.</p>}
+        </div>
       </div>
       <footer className="mt-8 text-center text-xs text-slate-400 space-y-2">
          <p>© 2024 Réseau des Missions Locales</p>
@@ -201,9 +327,11 @@ interface DashboardProps {
   user: User;
   onLogout: () => void;
   onOpenLegal: (type: 'mentions' | 'privacy') => void;
+  allowedDomains: AllowedDomain[];
+  onAllowedDomainsChange: (domains: AllowedDomain[]) => void;
 }
 
-const Dashboard = ({ user, onLogout, onOpenLegal }: DashboardProps) => {
+const Dashboard = ({ user, onLogout, onOpenLegal, allowedDomains, onAllowedDomainsChange }: DashboardProps) => {
   const [currentTab, setCurrentTab] = useState('prompts');
   const [prompts, setPrompts] = useState<Prompt[]>([]);
   const [resources, setResources] = useState<Resource[]>([]);
@@ -235,6 +363,10 @@ const Dashboard = ({ user, onLogout, onOpenLegal }: DashboardProps) => {
   const [userFormName, setUserFormName] = useState('');
   const [userFormRole, setUserFormRole] = useState('Conseiller');
   const [userFormStructure, setUserFormStructure] = useState<string | number>('');
+
+  // Domaines autorisés (Admin)
+  const [domainFormValue, setDomainFormValue] = useState('');
+  const [domainFormStructure, setDomainFormStructure] = useState<string | number>('');
 
   // --- VÉRIFICATION ADMIN ROBUSTE ---
   // Ignore la casse (Admin = admin) et les espaces inutiles
@@ -274,6 +406,16 @@ const Dashboard = ({ user, onLogout, onOpenLegal }: DashboardProps) => {
         const { data: sData } = await supabase.from('structures').select('*');
         if (sData) setStructures(sData);
 
+        const { data: dData } = await supabase.from('allowed_domains').select('*, structures(name)');
+        if (dData) {
+            onAllowedDomainsChange(dData.map((d: any) => ({
+                id: d.id,
+                domain: d.domain,
+                structure_id: d.structure_id,
+                structure_name: d.structures?.name
+            })));
+        }
+
         // Fetch Users for Admin
         if (isAdmin) {
             const { data: uData } = await supabase.from('profiles').select('*, structures(name)');
@@ -293,17 +435,18 @@ const Dashboard = ({ user, onLogout, onOpenLegal }: DashboardProps) => {
     } catch (e) {
         console.error("Erreur refresh:", e);
     }
-  }, [isAdmin]);
+  }, [isAdmin, onAllowedDomainsChange]);
 
   useEffect(() => {
     if (!supabase) {
       setPrompts(MOCK_PROMPTS);
       setStructures(MOCK_STRUCTURES);
       setAdminUsers(MOCK_USERS_LIST);
+      onAllowedDomainsChange(MOCK_ALLOWED_DOMAINS);
     } else {
       refreshData();
     }
-  }, [refreshData]);
+  }, [refreshData, onAllowedDomainsChange]);
 
   // --- FILTERED PROMPTS ---
   const filteredPrompts = prompts.filter(p => {
@@ -535,6 +678,46 @@ const Dashboard = ({ user, onLogout, onOpenLegal }: DashboardProps) => {
       }
   }
 
+  const handleCreateDomain = async (rawDomain: string, targetStructureId?: string | number) => {
+      const normalized = rawDomain.trim().replace(/^@/, '').toLowerCase();
+      if (!normalized.includes('.')) {
+          alert("Merci de saisir un domaine valide, par exemple missionlocale.fr");
+          return;
+      }
+
+      if (!supabase) {
+          onAllowedDomainsChange([...allowedDomains, {
+              id: Date.now(),
+              domain: normalized,
+              structure_id: targetStructureId || undefined,
+              structure_name: structures.find(s => s.id == targetStructureId)?.name
+          }]);
+          setIsModalOpen(false);
+          return;
+      }
+
+      const { error } = await supabase.from('allowed_domains').insert({
+          domain: normalized,
+          structure_id: targetStructureId || null,
+          created_by: user.id
+      });
+
+      if (error) alert("Erreur : " + error.message);
+      else { await refreshData(); setIsModalOpen(false); }
+  }
+
+  const handleDeleteDomain = async (id: string | number) => {
+      if (!confirm("Supprimer ce domaine autorisé ?")) return;
+      if (!supabase) {
+          onAllowedDomainsChange(allowedDomains.filter(d => d.id !== id));
+          return;
+      }
+
+      const { error } = await supabase.from('allowed_domains').delete().eq('id', id);
+      if (error) alert("Erreur : " + error.message);
+      else { await refreshData(); }
+  }
+
   // --- ADMIN VUES ---
   const renderStructures = () => (
     <div className="max-w-4xl mx-auto">
@@ -604,6 +787,56 @@ const Dashboard = ({ user, onLogout, onOpenLegal }: DashboardProps) => {
     </div>
   );
 
+  const renderDomains = () => (
+    <div className="max-w-4xl mx-auto">
+        <div className="flex justify-between items-center mb-6">
+            <h2 className="text-xl font-bold text-slate-800">Domaines autorisés</h2>
+            <button
+                onClick={() => {
+                    setModalMode('domain');
+                    setIsModalOpen(true);
+                    setDomainFormValue('');
+                    setDomainFormStructure(structures[0] ? structures[0].id : '');
+                }}
+                className="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center hover:bg-indigo-700"
+            >
+                <Plus size={16} className="mr-2"/> Ajouter un domaine
+            </button>
+        </div>
+        <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+            <table className="w-full text-sm text-left">
+                <thead className="bg-slate-50 text-slate-500 font-medium border-b border-slate-200">
+                    <tr>
+                        <th className="px-6 py-4">Domaine</th>
+                        <th className="px-6 py-4">Structure rattachée</th>
+                        <th className="px-6 py-4 text-right">Actions</th>
+                    </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                    {allowedDomains.map(d => (
+                        <tr key={d.id} className="hover:bg-slate-50">
+                            <td className="px-6 py-4 font-medium text-slate-800">{d.domain}</td>
+                            <td className="px-6 py-4 text-slate-600">{d.structure_name || structures.find(s => s.id == d.structure_id)?.name || 'Non spécifié'}</td>
+                            <td className="px-6 py-4 text-right">
+                                <button onClick={() => handleDeleteDomain(d.id)} className="text-red-500 hover:underline text-xs flex items-center justify-end gap-1">
+                                    <Trash2 size={12}/> Supprimer
+                                </button>
+                            </td>
+                        </tr>
+                    ))}
+                    {allowedDomains.length === 0 && (
+                        <tr>
+                            <td className="px-6 py-4 text-sm text-slate-500" colSpan={3}>
+                                Aucun domaine n'a encore été ajouté. Ajoutez-en pour autoriser l'auto-inscription.
+                            </td>
+                        </tr>
+                    )}
+                </tbody>
+            </table>
+        </div>
+    </div>
+  );
+
   // --- RENDU UI ---
 
   return (
@@ -621,6 +854,7 @@ const Dashboard = ({ user, onLogout, onOpenLegal }: DashboardProps) => {
                    <>
                        <div className="mt-6 mb-2 px-4 text-xs font-bold text-slate-400 uppercase">Administration</div>
                        <SidebarItem icon={Building2} label="Structures" active={currentTab === 'structures'} onClick={() => setCurrentTab('structures')} />
+                       <SidebarItem icon={Globe} label="Domaines" active={currentTab === 'domains'} onClick={() => setCurrentTab('domains')} />
                        <SidebarItem icon={Users} label="Utilisateurs" active={currentTab === 'users'} onClick={() => setCurrentTab('users')} />
                    </>
                )}
@@ -645,7 +879,7 @@ const Dashboard = ({ user, onLogout, onOpenLegal }: DashboardProps) => {
 
       <main className="flex-1 p-8">
          {/* HEADER COMMUN */}
-         {currentTab !== 'structures' && currentTab !== 'users' && (
+         {currentTab !== 'structures' && currentTab !== 'users' && currentTab !== 'domains' && (
              <div className="flex justify-between items-center mb-8">
                 <h1 className="text-2xl font-bold">
                    {currentTab === 'prompts' && 'Promptothèque'}
@@ -729,6 +963,7 @@ const Dashboard = ({ user, onLogout, onOpenLegal }: DashboardProps) => {
 
          {currentTab === 'structures' && renderStructures()}
          {currentTab === 'users' && renderUsers()}
+         {currentTab === 'domains' && renderDomains()}
       </main>
 
       {/* MODAL LECTURE DE RESSOURCE TEXTE */}
@@ -744,7 +979,7 @@ const Dashboard = ({ user, onLogout, onOpenLegal }: DashboardProps) => {
                   <h3 className="text-xl font-bold">
                       {modalMode === 'prompt' ? (editingPromptId ? "Modifier le prompt" : parentPromptId ? "Améliorer ce prompt" : "Nouveau Prompt") 
                       : modalMode === 'user' ? (editingUserId ? "Modifier l'utilisateur" : "Inviter un salarié")
-                      : "Nouvel Élément"}
+                      : modalMode === 'domain' ? "Ajouter un domaine" : "Nouvel Élément"}
                   </h3>
                   <button onClick={() => setIsModalOpen(false)}><X /></button>
                </div>
@@ -757,6 +992,7 @@ const Dashboard = ({ user, onLogout, onOpenLegal }: DashboardProps) => {
                   if (modalMode === 'prompt') handleSubmitPrompt();
                   else if (modalMode === 'structure') handleCreateStructure(formData.get('name') as string, formData.get('city') as string);
                   else if (modalMode === 'resource') handleCreateResource(formData.get('title') as string, formData.get('category') as string, 'global', selectedFile);
+                  else if (modalMode === 'domain') handleCreateDomain(formData.get('domain') as string, domainFormStructure);
                   else if (modalMode === 'user') handleSubmitUser();
                }} className="space-y-4">
                   
@@ -840,6 +1076,34 @@ const Dashboard = ({ user, onLogout, onOpenLegal }: DashboardProps) => {
                      </>
                   )}
 
+                  {modalMode === 'domain' && (
+                     <>
+                        <div>
+                            <label className="block text-xs font-bold text-slate-500 mb-1">Nom de domaine</label>
+                            <input
+                                name="domain"
+                                value={domainFormValue}
+                                onChange={(e) => setDomainFormValue(e.target.value)}
+                                required
+                                placeholder="exemple.org"
+                                className="w-full border p-2 rounded"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-xs font-bold text-slate-500 mb-1">Structure associée (optionnel)</label>
+                            <select
+                                value={domainFormStructure}
+                                onChange={(e) => setDomainFormStructure(e.target.value)}
+                                className="w-full border p-2 rounded bg-white"
+                            >
+                                <option value="">Sans rattachement</option>
+                                {structures.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                            </select>
+                            <p className="text-[11px] text-slate-500 mt-1">Les emails terminant par ce domaine pourront créer un compte librement.</p>
+                        </div>
+                     </>
+                  )}
+
                   <div className="flex justify-end pt-4">
                      <button className="bg-indigo-600 text-white px-4 py-2 rounded font-bold">Valider</button>
                   </div>
@@ -855,6 +1119,31 @@ export default function App() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [isLegalOpen, setIsLegalOpen] = useState(false);
   const [legalType, setLegalType] = useState<'mentions' | 'privacy'>('mentions');
+  const [allowedDomains, setAllowedDomains] = useState<AllowedDomain[]>([]);
+
+  const loadAllowedDomains = useCallback(async () => {
+      if (!supabase) {
+          setAllowedDomains(MOCK_ALLOWED_DOMAINS);
+          return;
+      }
+
+      try {
+          const { data, error } = await supabase.from('allowed_domains').select('*, structures(name)');
+          if (error) throw error;
+          if (data) {
+              setAllowedDomains(data.map((d: any) => ({
+                  id: d.id,
+                  domain: d.domain,
+                  structure_id: d.structure_id,
+                  structure_name: d.structures?.name
+              })));
+          }
+      } catch (err) {
+          console.error('Erreur chargement domaines autorisés :', err);
+      }
+  }, []);
+
+  useEffect(() => { loadAllowedDomains(); }, [loadAllowedDomains]);
 
   const openLegal = (type: 'mentions' | 'privacy') => {
       setLegalType(type);
@@ -884,9 +1173,15 @@ export default function App() {
   return (
     <>
         {!currentUser ? (
-            <LoginPage onLogin={setCurrentUser} onOpenLegal={openLegal} />
+            <LoginPage onLogin={setCurrentUser} onOpenLegal={openLegal} allowedDomains={allowedDomains} />
         ) : (
-            <Dashboard user={currentUser} onLogout={() => setCurrentUser(null)} onOpenLegal={openLegal} />
+            <Dashboard 
+                user={currentUser} 
+                onLogout={() => setCurrentUser(null)} 
+                onOpenLegal={openLegal}
+                allowedDomains={allowedDomains}
+                onAllowedDomainsChange={setAllowedDomains}
+            />
         )}
 
         <Modal 
