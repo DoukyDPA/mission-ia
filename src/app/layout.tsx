@@ -15,7 +15,7 @@ const geistMono = Geist_Mono({
 // C'est ici que l'on change le titre de l'onglet
 export const metadata: Metadata = {
   title: "IAMESRESSOURCES",
-  description: "Plateforme de ressources et prompts pour les Missions Locales",
+  description: "Plateforme de ressources et prompts pour les structures de l'emploi",
 };
 
 export default function RootLayout({
