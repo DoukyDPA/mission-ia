@@ -4,7 +4,7 @@ import {
   BookOpen, GitFork, Users, Search, FileText, Video, Download, Plus, 
   ArrowRight, X, LogOut, Building2, Globe, UploadCloud, UserPlus, Trash2, 
   ShieldCheck, Link as LinkIcon, AlignLeft, ExternalLink, Eye, Pencil, Mail, PlayCircle,
-  Menu
+  Menu, Copy // <--- On s'assure que Copy est bien importé
 } from 'lucide-react';
 
 import { supabase } from '@/lib/supabase';
@@ -115,6 +115,11 @@ export const Dashboard = ({ user, onLogout, onOpenLegal, allowedDomains, onAllow
   }, [refreshData, onAllowedDomainsChange]);
 
   // --- HANDLERS ---
+  const copyPromptToClipboard = (content: string) => {
+      navigator.clipboard.writeText(content);
+      alert("Prompt copié dans le presse-papier !");
+  };
+
   const prepareCreatePrompt = () => { setModalMode('prompt'); setEditingPromptId(null); setPromptFormTitle(''); setPromptFormContent(''); setPromptFormTag(availableCategories[0]); setParentPromptId(null); setIsCustomTag(false); setIsModalOpen(true); }
   const prepareForkPrompt = (original: Prompt) => { setModalMode('prompt'); setEditingPromptId(null); setPromptFormTitle(`Variante : ${original.title}`); setPromptFormContent(original.content); setPromptFormTag(original.tags[0] || 'Administratif'); setParentPromptId(original.id); setIsModalOpen(true); }
   const prepareEditPrompt = (original: Prompt) => { setModalMode('prompt'); setEditingPromptId(original.id); setPromptFormTitle(original.title); setPromptFormContent(original.content); setPromptFormTag(original.tags[0] || availableCategories[0]); setIsCustomTag(!availableCategories.includes(original.tags[0])); setParentPromptId(null); setIsModalOpen(true); }
@@ -279,7 +284,7 @@ export const Dashboard = ({ user, onLogout, onOpenLegal, allowedDomains, onAllow
                 <p className="text-[10px] text-slate-500 text-center mb-2 leading-tight">Téléchargez gratuitement notre "anonymiseur" de CV pour utiliser l'IA en toute discrétion</p>
                 <a href="https://solutions.silveria.fr/" target="_blank" rel="noopener noreferrer" className="flex justify-center hover:scale-105 transition-transform">
                     {/* LOGO CVforIA AGRANDI */}
-                    <img src="/logo-anonymiseur.png" alt="Anonymiseur Silveria" className="h-auto w-40 object-contain" />
+                    <img src="/logo-anonymiseur.png" alt="Anonymiseur Silveria" className="h-auto w-48 object-contain" />
                 </a>
             </div>
          </div>
@@ -290,7 +295,7 @@ export const Dashboard = ({ user, onLogout, onOpenLegal, allowedDomains, onAllow
             <div className="flex justify-center gap-3 text-[10px] text-slate-400 border-t border-slate-200 pt-3"><button onClick={() => onOpenLegal('mentions')} className="hover:text-[#116862]">Mentions Légales</button><span>•</span><button onClick={() => onOpenLegal('privacy')} className="hover:text-[#116862]">Confidentialité</button></div>
             <div className="mt-4 pt-2 border-t border-slate-200 text-center">
                <div className="flex items-center justify-center gap-2 mb-1"><img src="/logo-silveria.png" alt="Silveria" className="h-6 w-auto object-contain" /></div>
-               <p className="text-[9px] text-slate-400">Conçu et mis à jour par Silveria</p>
+               <p className="text-[9px] text-slate-400 font-bold">Conçu et mis à jour par Silveria</p>
             </div>
          </div>
       </aside>
@@ -316,7 +321,18 @@ export const Dashboard = ({ user, onLogout, onOpenLegal, allowedDomains, onAllow
                   <div key={p.id} className={`bg-white p-6 rounded-xl border shadow-sm ${p.isFork ? 'border-l-4 border-l-[#116862] ml-8' : 'border-slate-200'}`}>
                      <div className="flex justify-between mb-3">
                         <div className="flex items-center gap-3"><div className="w-10 h-10 bg-slate-100 rounded-full flex items-center justify-center font-bold text-slate-600">{p.avatar}</div><div><h3 className="font-bold text-slate-800 flex items-center gap-2">{p.title} {p.isFork && p.parentAuthor && <span className="text-[10px] bg-[#116862]/10 text-[#116862] px-2 py-0.5 rounded-full border border-[#116862]/20"><GitFork size={10} className="mr-1"/> Variante de {p.parentAuthor}</span>}</h3><p className="text-xs text-slate-500">{p.author} • {p.missionLocale}</p></div></div>
-                        <div className="flex items-center gap-2"><Badge>{p.tags[0]}</Badge>{(isAdmin || p.user_id === user.id) && <button onClick={() => prepareEditPrompt(p)} className="text-slate-300 hover:text-[#116862] p-1"><Pencil size={14}/></button>}{isAdmin && <button onClick={() => deleteItem('prompts', p.id)} className="text-slate-300 hover:text-red-500 p-1"><Trash2 size={14}/></button>}</div>
+                        <div className="flex items-center gap-2">
+                            <Badge>{p.tags[0]}</Badge>
+                            <button
+                                onClick={() => copyPromptToClipboard(p.content)}
+                                className="text-slate-300 hover:text-[#116862] p-1"
+                                title="Copier"
+                            >
+                                <Copy size={14} />
+                            </button>
+                            {(isAdmin || p.user_id === user.id) && <button onClick={() => prepareEditPrompt(p)} className="text-slate-300 hover:text-[#116862] p-1"><Pencil size={14}/></button>}
+                            {isAdmin && <button onClick={() => deleteItem('prompts', p.id)} className="text-slate-300 hover:text-red-500 p-1"><Trash2 size={14}/></button>}
+                        </div>
                      </div>
                      <div className="bg-slate-50 p-4 rounded text-sm font-mono text-slate-700 whitespace-pre-wrap">{p.content}</div>
                      <div className="mt-4 pt-4 border-t border-slate-100 flex justify-end"><button onClick={() => prepareForkPrompt(p)} className="text-xs font-medium text-[#116862] hover:bg-[#116862]/10 px-3 py-1.5 rounded flex items-center gap-1"><GitFork size={14} /> Améliorer / Proposer une variante</button></div>
