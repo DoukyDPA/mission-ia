@@ -35,7 +35,7 @@ export const Dashboard = ({ user, onLogout, onOpenLegal, allowedDomains, onAllow
   const [modalMode, setModalMode] = useState('');
   const [viewingResource, setViewingResource] = useState<Resource | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [availableCategories, setAvailableCategories] = useState(['Administratif', 'Relation Jeunes', 'Direction', 'RH', 'Projets', 'Autre']);
+  const [availableCategories, setAvailableCategories] = useState(['Administratif', 'Relation Jeunes', 'Direction', 'RH', 'Projets', 'Emploi', 'Autre']);
   const [selectedCategory, setSelectedCategory] = useState('Tous');
 
   // Forms State
