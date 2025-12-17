@@ -200,7 +200,14 @@ const LoginPage = ({ onLogin, onOpenLegal, allowedDomains }: LoginPageProps) => 
     }
 
     try {
-      const { data, error: signUpError } = await supabase.auth.signUp({ email, password });
+      const { data, error: signUpError } = await supabase.auth.signUp({ 
+        email, 
+        password,
+        options: {
+          emailRedirectTo: window.location.origin
+        }
+      });
+      
       if (signUpError) throw signUpError;
 
       const newUserId = data.user?.id;
