@@ -8,7 +8,7 @@ import { PromptList } from './PromptList';
 import { ResourceList } from './ResourceList';
 import { AdminPanel } from './AdminPanel';
 
-// Données Mock
+// Données Mock (Secours)
 const MOCK_STRUCTURES = [{ id: 1, name: "Mission Locale de Lyon", city: "Lyon" }];
 const MOCK_PROMPTS = [{ id: 1, title: "Exemple", content: "Contenu...", author: "Admin", role: "Admin", avatar: "AD", missionLocale: "National", date: "Hier", tags: ["Administratif"], likes: 0, forks: 0, isFork: false }];
 
@@ -24,33 +24,37 @@ export const Dashboard = ({ user, onLogout, onOpenLegal, allowedDomains, onAllow
   const [currentTab, setCurrentTab] = useState('prompts');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   
-  // Data
+  // Données
   const [prompts, setPrompts] = useState<Prompt[]>([]);
   const [resources, setResources] = useState<Resource[]>([]);
   const [structures, setStructures] = useState<Structure[]>([]);
   const [adminUsers, setAdminUsers] = useState<User[]>([]);
   
-  // UI & Filters
+  // UI & Filtres
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState('');
   const [viewingResource, setViewingResource] = useState<Resource | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [availableCategories, setAvailableCategories] = useState(['Administratif', 'Relation Jeunes', 'Direction', 'RH', 'Projets', 'Emploi', 'Autre']);
+  
+  // Catégories (State)
+  const [availableCategories, setAvailableCategories] = useState(['Administratif', 'Relation Jeunes', 'Direction', 'RH', 'Projets', 'Autre']);
   const [selectedCategory, setSelectedCategory] = useState('Tous');
 
-  // Forms State
+  // Formulaires : Prompts
   const [editingPromptId, setEditingPromptId] = useState<string | number | null>(null);
   const [promptFormTitle, setPromptFormTitle] = useState('');
   const [promptFormContent, setPromptFormContent] = useState('');
   const [promptFormTag, setPromptFormTag] = useState('Administratif');
   const [parentPromptId, setParentPromptId] = useState<string | number | null>(null);
 
+  // Formulaires : Ressources
   const [editingResourceId, setEditingResourceId] = useState<string | number | null>(null);
   const [resFormType, setResFormType] = useState<'file' | 'text' | 'link' | 'video'>('file');
   const [resFormContent, setResFormContent] = useState('');
   const [resFormTitle, setResFormTitle] = useState('');
   const [resFormCategory, setResFormCategory] = useState('Formation');
 
+  // Formulaires : Admin
   const [editingUserId, setEditingUserId] = useState<string | number | null>(null);
   const [userFormEmail, setUserFormEmail] = useState('');
   const [userFormName, setUserFormName] = useState('');
@@ -62,15 +66,20 @@ export const Dashboard = ({ user, onLogout, onOpenLegal, allowedDomains, onAllow
 
   const isAdmin = (user.role || '').trim().toLowerCase() === 'admin';
 
-  // --- DATA LOADING ---
+  // --- CHARGEMENT DES DONNÉES ---
   const refreshData = useCallback(async () => {
     if (!supabase) return; 
     try {
-        const { data: pData } = await supabase.from('prompts').select(`*, profiles(full_name, avatar_url, role), structures(name)`).order('created_at', { ascending: false });
+        // 1. Prompts
+        const { data: pData, error: pError } = await supabase.from('prompts').select(`*, profiles(full_name, avatar_url, role), structures(name)`).order('created_at', { ascending: false });
+        if (pError) throw pError;
+        
         if (pData) {
-            const usedTags = new Set(availableCategories);
-            pData.forEach((p: any) => { if (p.tags) p.tags.forEach((t: string) => usedTags.add(t)); });
+            // Mise à jour intelligente des catégories disponibles sans doublons
+            const usedTags = new Set(['Administratif', 'Relation Jeunes', 'Direction', 'RH', 'Projets', 'Autre']);
+            pData.forEach((p: any) => { if (p.tags && Array.isArray(p.tags)) p.tags.forEach((t: string) => usedTags.add(t)); });
             setAvailableCategories(Array.from(usedTags).sort());
+
             setPrompts(pData.map((p: any) => ({
                 id: p.id, title: p.title, content: p.content, author: p.profiles?.full_name || 'Inconnu', role: p.profiles?.role || 'Membre',
                 avatar: (p.profiles?.full_name || 'U').substring(0,2).toUpperCase(), missionLocale: p.structures?.name || 'National',
@@ -78,55 +87,101 @@ export const Dashboard = ({ user, onLogout, onOpenLegal, allowedDomains, onAllow
                 parentId: p.parent_id, parentAuthor: p.parent_id ? 'Autre' : undefined, user_id: p.user_id
             })));
         }
+
+        // 2. Ressources
         const { data: rData } = await supabase.from('resources').select('*').order('created_at', { ascending: false });
         if (rData) setResources(rData.map((r: any) => ({ ...r, type: r.file_type || 'file', date: new Date(r.created_at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' }) })));
         
+        // 3. Structures & Domaines
         const { data: sData } = await supabase.from('structures').select('*');
         if (sData) setStructures(sData);
         
         const { data: dData } = await supabase.from('allowed_domains').select('*, structures(name)');
         if (dData) onAllowedDomainsChange(dData.map((d: any) => ({ id: d.id, domain: d.domain, structure_id: d.structure_id, structure_name: d.structures?.name })));
         
+        // 4. Utilisateurs (Admin)
         if (isAdmin) {
             const { data: uData } = await supabase.from('profiles').select('*, structures(name)');
             if (uData) setAdminUsers(uData.map((u: any) => ({ id: u.id, email: u.email, name: u.full_name || 'Sans nom', role: u.role, missionLocale: u.structures?.name || 'Non assigné', avatar: (u.full_name || 'U').substring(0,2).toUpperCase(), structure_id: u.structure_id })));
         }
     } catch (e) { console.error("Erreur refresh:", e); }
-  }, [isAdmin, onAllowedDomainsChange]); // Removed availableCategories from dep to avoid loop
+  }, [isAdmin, onAllowedDomainsChange]);
 
-  useEffect(() => { if (!supabase) { setPrompts(MOCK_PROMPTS); setStructures(MOCK_STRUCTURES); onAllowedDomainsChange([]); } else { refreshData(); } }, [refreshData, onAllowedDomainsChange]);
+  useEffect(() => { 
+      if (!supabase) { setPrompts(MOCK_PROMPTS); setStructures(MOCK_STRUCTURES); onAllowedDomainsChange([]); } 
+      else { refreshData(); } 
+  }, [refreshData, onAllowedDomainsChange]);
 
   // --- ACTIONS ---
   const copyPrompt = (content: string) => { navigator.clipboard.writeText(content); alert("Prompt copié !"); };
   const deleteItem = async (table: string, id: string|number) => { if(!confirm("Supprimer ?")) return; if(supabase) { await supabase.from(table).delete().eq('id', id); await refreshData(); } };
   
-  // Prepares
-  const prepareCreatePrompt = () => { setModalMode('prompt'); setEditingPromptId(null); setPromptFormTitle(''); setPromptFormContent(''); setPromptFormTag(availableCategories[0]); setParentPromptId(null); setIsModalOpen(true); }
-  const prepareForkPrompt = (original: Prompt) => { setModalMode('prompt'); setEditingPromptId(null); setPromptFormTitle(`Variante : ${original.title}`); setPromptFormContent(original.content); setPromptFormTag(original.tags[0] || 'Administratif'); setParentPromptId(original.id); setIsModalOpen(true); }
-  const prepareEditPrompt = (original: Prompt) => { setModalMode('prompt'); setEditingPromptId(original.id); setPromptFormTitle(original.title); setPromptFormContent(original.content); setPromptFormTag(original.tags[0] || availableCategories[0]); setParentPromptId(null); setIsModalOpen(true); }
-  const prepareCreateResource = () => { setModalMode('resource'); setEditingResourceId(null); setResFormTitle(''); setResFormCategory('Formation'); setResFormType('file'); setResFormContent(''); setSelectedFile(null); setIsModalOpen(true); }
-  const prepareEditResource = (r: Resource) => { setModalMode('resource'); setEditingResourceId(r.id); setResFormTitle(r.title); setResFormCategory(r.category); setResFormType(r.type as any); setResFormContent(r.type === 'text' ? (r.description || '') : (r.file_url || '')); setSelectedFile(null); setIsModalOpen(true); }
+  // --- PRÉPARATION DES FORMULAIRES ---
+  const prepareCreatePrompt = () => { 
+      setModalMode('prompt'); setEditingPromptId(null); setPromptFormTitle(''); setPromptFormContent(''); 
+      setPromptFormTag(availableCategories[0]); setParentPromptId(null); setIsModalOpen(true); 
+  }
+  const prepareForkPrompt = (original: Prompt) => { 
+      setModalMode('prompt'); setEditingPromptId(null); setPromptFormTitle(`Variante : ${original.title}`); setPromptFormContent(original.content); 
+      setPromptFormTag(original.tags[0] || 'Administratif'); setParentPromptId(original.id); setIsModalOpen(true); 
+  }
+  const prepareEditPrompt = (original: Prompt) => { 
+      setModalMode('prompt'); setEditingPromptId(original.id); setPromptFormTitle(original.title); setPromptFormContent(original.content); 
+      // Sécurisation : si le tag n'existe plus, on prend le premier dispo
+      setPromptFormTag(original.tags[0] || availableCategories[0]); 
+      setParentPromptId(null); setIsModalOpen(true); 
+  }
+  const prepareCreateResource = () => { 
+      setModalMode('resource'); setEditingResourceId(null); setResFormTitle(''); setResFormCategory('Formation'); setResFormType('file'); setResFormContent(''); setSelectedFile(null); setIsModalOpen(true); 
+  }
+  const prepareEditResource = (r: Resource) => { 
+      setModalMode('resource'); setEditingResourceId(r.id); setResFormTitle(r.title); setResFormCategory(r.category); 
+      // @ts-ignore
+      setResFormType(r.type); setResFormContent(r.type === 'text' ? (r.description || '') : (r.file_url || '')); setSelectedFile(null); setIsModalOpen(true); 
+  }
   
   const prepareEditUser = (u: User) => { setModalMode('user'); setEditingUserId(u.id); setUserFormName(u.name); setUserFormEmail(u.email); setUserFormRole(u.role); setUserFormStructure(u.structure_id || (structures[0] ? structures[0].id : '')); setIsModalOpen(true); }
   const prepareInviteUser = () => { setModalMode('user'); setEditingUserId(null); setUserFormName(''); setUserFormEmail(''); setUserFormRole('Conseiller'); setUserFormStructure(structures[0] ? structures[0].id : ''); setIsModalOpen(true); }
 
-  // Submits
+  // --- SOUMISSION DES FORMULAIRES ---
   const handleSubmitPrompt = async () => {
     if (!supabase) { setIsModalOpen(false); return; }
-    const payload = { title: promptFormTitle, content: promptFormContent, tags: [promptFormTag] };
-    if (editingPromptId) await supabase.from('prompts').update(payload).eq('id', editingPromptId);
-    else { const { data: profile } = await supabase.from('profiles').select('structure_id').eq('id', user.id).single(); await supabase.from('prompts').insert({ ...payload, user_id: user.id, structure_id: profile?.structure_id, is_fork: !!parentPromptId, parent_id: parentPromptId }); }
-    await refreshData(); setIsModalOpen(false);
+    try {
+        const payload = { title: promptFormTitle, content: promptFormContent, tags: [promptFormTag] };
+        
+        if (editingPromptId) {
+            const { error } = await supabase.from('prompts').update(payload).eq('id', editingPromptId);
+            if (error) throw error;
+        } else { 
+            const { data: profile } = await supabase.from('profiles').select('structure_id').eq('id', user.id).single(); 
+            const { error } = await supabase.from('prompts').insert({ ...payload, user_id: user.id, structure_id: profile?.structure_id, is_fork: !!parentPromptId, parent_id: parentPromptId }); 
+            if (error) throw error;
+        }
+        await refreshData(); 
+        setIsModalOpen(false);
+    } catch (err: any) { alert("Erreur lors de la sauvegarde : " + err.message); }
   };
+
   const handleCreateResource = async () => {
-    let finalUrl = resFormContent;
-    if (resFormType === 'file') {
-        if (selectedFile) { const fileName = `${user.id}/${Date.now()}.${selectedFile.name.split('.').pop()}`; await supabase?.storage.from('documents').upload(fileName, selectedFile); finalUrl = supabase?.storage.from('documents').getPublicUrl(fileName).data.publicUrl || ''; }
-    } else if (resFormType === 'text') { finalUrl = ''; }
-    const payload = { title: resFormTitle, file_type: resFormType, category: resFormCategory, access_scope: 'global', target_structure_id: null, file_url: finalUrl, description: resFormType === 'text' ? resFormContent : '', uploaded_by: user.id };
-    if (editingResourceId) await supabase?.from('resources').update(payload).eq('id', editingResourceId); else await supabase?.from('resources').insert(payload);
-    await refreshData(); setIsModalOpen(false);
+    try {
+        let finalUrl = resFormContent;
+        if (resFormType === 'file') {
+            if (selectedFile) { const fileName = `${user.id}/${Date.now()}.${selectedFile.name.split('.').pop()}`; await supabase?.storage.from('documents').upload(fileName, selectedFile); finalUrl = supabase?.storage.from('documents').getPublicUrl(fileName).data.publicUrl || ''; }
+        } else if (resFormType === 'text') { finalUrl = ''; }
+        
+        const payload = { title: resFormTitle, file_type: resFormType, category: resFormCategory, access_scope: 'global', target_structure_id: null, file_url: finalUrl, description: resFormType === 'text' ? resFormContent : '', uploaded_by: user.id };
+        
+        if (editingResourceId) {
+            const { error } = await supabase?.from('resources').update(payload).eq('id', editingResourceId);
+            if (error) throw error;
+        } else {
+            const { error } = await supabase?.from('resources').insert(payload);
+            if (error) throw error;
+        }
+        await refreshData(); setIsModalOpen(false);
+    } catch (err: any) { alert("Erreur ressource : " + err.message); }
   };
+
   const handleSubmitUser = async () => {
     if (editingUserId) await supabase?.from('profiles').update({ full_name: userFormName, role: userFormRole, structure_id: userFormStructure }).eq('id', editingUserId); else alert(`Simulé: Invitation à ${userFormEmail}`);
     await refreshData(); setIsModalOpen(false);
@@ -171,11 +226,13 @@ export const Dashboard = ({ user, onLogout, onOpenLegal, allowedDomains, onAllow
                   else if(modalMode === 'domain') handleCreateDomain();
                   else if(modalMode === 'user') handleSubmitUser();
                }} className="space-y-4">
+                  
                   {modalMode === 'prompt' && (
                     <>
-                        <input value={promptFormTitle} onChange={e=>setPromptFormTitle(e.target.value)} className="w-full border p-2 rounded" placeholder="Titre" required/>
-                        <textarea value={promptFormContent} onChange={e=>setPromptFormContent(e.target.value)} rows={5} className="w-full border p-2 rounded" placeholder="Contenu..." required/>
-                        {/* ✅ CORRECTION : MENU DÉROULANT CATÉGORIES */}
+                        <div><label className="block text-xs font-bold text-slate-500 mb-1">Titre</label><input value={promptFormTitle} onChange={e=>setPromptFormTitle(e.target.value)} className="w-full border p-2 rounded" placeholder="Titre" required/></div>
+                        <div><label className="block text-xs font-bold text-slate-500 mb-1">Contenu</label><textarea value={promptFormContent} onChange={e=>setPromptFormContent(e.target.value)} rows={5} className="w-full border p-2 rounded" placeholder="Contenu..." required/></div>
+                        
+                        {/* MENU DÉROULANT CATÉGORIES */}
                         <div>
                             <label className="block text-xs font-bold text-slate-500 mb-1">Catégorie</label>
                             <select value={promptFormTag} onChange={e=>setPromptFormTag(e.target.value)} className="w-full border p-2 rounded bg-white">
@@ -184,6 +241,7 @@ export const Dashboard = ({ user, onLogout, onOpenLegal, allowedDomains, onAllow
                         </div>
                     </>
                   )}
+
                   {modalMode === 'resource' && (
                      <>
                         <div><label className="block text-xs font-bold text-slate-500 mb-1">Titre</label><input value={resFormTitle} onChange={e=>setResFormTitle(e.target.value)} required className="w-full border p-2 rounded" placeholder="Titre"/></div>
