@@ -4,7 +4,7 @@ import {
   BookOpen, GitFork, Users, Search, FileText, Video, Download, Plus, 
   ArrowRight, X, LogOut, Building2, Globe, UploadCloud, UserPlus, Trash2, 
   ShieldCheck, Link as LinkIcon, AlignLeft, ExternalLink, Eye, Pencil, Mail, PlayCircle,
-  Menu, Copy // <--- On s'assure que Copy est bien importé
+  Menu, Copy
 } from 'lucide-react';
 
 import { supabase } from '@/lib/supabase';
@@ -47,17 +47,21 @@ export const Dashboard = ({ user, onLogout, onOpenLegal, allowedDomains, onAllow
   const [availableCategories, setAvailableCategories] = useState(['Administratif', 'Relation Jeunes', 'Direction', 'RH', 'Projets', 'Autre']);
   const [selectedCategory, setSelectedCategory] = useState('Tous');
 
-  // Formulaires
+  // Formulaires Prompts
   const [editingPromptId, setEditingPromptId] = useState<string | number | null>(null);
   const [promptFormTitle, setPromptFormTitle] = useState('');
   const [promptFormContent, setPromptFormContent] = useState('');
   const [promptFormTag, setPromptFormTag] = useState('Administratif');
   const [parentPromptId, setParentPromptId] = useState<string | number | null>(null);
 
+  // Formulaires Ressources
   const [editingResourceId, setEditingResourceId] = useState<string | number | null>(null);
   const [resFormType, setResFormType] = useState<'file' | 'text' | 'link' | 'video'>('file');
   const [resFormContent, setResFormContent] = useState('');
+  const [resFormTitle, setResFormTitle] = useState(''); // Ajout pour gérer le titre proprement
+  const [resFormCategory, setResFormCategory] = useState('Formation'); // Ajout pour la catégorie
 
+  // Formulaires Admin
   const [editingUserId, setEditingUserId] = useState<string | number | null>(null);
   const [userFormEmail, setUserFormEmail] = useState('');
   const [userFormName, setUserFormName] = useState('');
@@ -120,9 +124,11 @@ export const Dashboard = ({ user, onLogout, onOpenLegal, allowedDomains, onAllow
       alert("Prompt copié dans le presse-papier !");
   };
 
+  // Prompts
   const prepareCreatePrompt = () => { setModalMode('prompt'); setEditingPromptId(null); setPromptFormTitle(''); setPromptFormContent(''); setPromptFormTag(availableCategories[0]); setParentPromptId(null); setIsCustomTag(false); setIsModalOpen(true); }
   const prepareForkPrompt = (original: Prompt) => { setModalMode('prompt'); setEditingPromptId(null); setPromptFormTitle(`Variante : ${original.title}`); setPromptFormContent(original.content); setPromptFormTag(original.tags[0] || 'Administratif'); setParentPromptId(original.id); setIsModalOpen(true); }
   const prepareEditPrompt = (original: Prompt) => { setModalMode('prompt'); setEditingPromptId(original.id); setPromptFormTitle(original.title); setPromptFormContent(original.content); setPromptFormTag(original.tags[0] || availableCategories[0]); setIsCustomTag(!availableCategories.includes(original.tags[0])); setParentPromptId(null); setIsModalOpen(true); }
+  
   const handleSubmitPrompt = async () => {
     if (!supabase) { setIsModalOpen(false); return; }
     try {
@@ -135,21 +141,65 @@ export const Dashboard = ({ user, onLogout, onOpenLegal, allowedDomains, onAllow
       await refreshData(); setIsModalOpen(false);
     } catch (err: any) { alert("Erreur : " + err.message); }
   };
-  const handleCreateResource = async (title: string, category: string, scope: string, file: File | null, targetStructId?: string) => {
+
+  // Ressources (CORRIGÉ)
+  const prepareCreateResource = () => {
+      setModalMode('resource'); setEditingResourceId(null); 
+      setResFormTitle(''); setResFormCategory('Formation');
+      setResFormType('file'); setResFormContent(''); setSelectedFile(null);
+      setIsModalOpen(true);
+  }
+
+  const prepareEditResource = (r: Resource) => {
+      setModalMode('resource'); setEditingResourceId(r.id);
+      setResFormTitle(r.title); setResFormCategory(r.category);
+      // @ts-ignore
+      setResFormType(r.type);
+      setResFormContent(r.type === 'text' ? (r.description || '') : (r.file_url || ''));
+      setSelectedFile(null);
+      setIsModalOpen(true);
+  }
+
+  const handleCreateResource = async () => {
       let finalUrl = '', description = '';
       if (!supabase) { setIsModalOpen(false); return; }
-      if (resFormType === 'file' && file) {
-          try {
-              const fileName = `${user.id}/${Date.now()}.${file.name.split('.').pop()}`;
-              await supabase.storage.from('documents').upload(fileName, file);
-              finalUrl = supabase.storage.from('documents').getPublicUrl(fileName).data.publicUrl;
-          } catch (e: any) { alert("Erreur upload: " + e.message); return; }
-      } else { if(resFormType === 'text') description = resFormContent; else finalUrl = resFormContent; }
-      const payload = { title, file_type: resFormType, category, access_scope: scope, target_structure_id: scope === 'local' ? targetStructId : null, file_url: finalUrl, description, uploaded_by: user.id };
+      
+      if (resFormType === 'file') {
+          if (selectedFile) {
+            try {
+                const fileName = `${user.id}/${Date.now()}.${selectedFile.name.split('.').pop()}`;
+                await supabase.storage.from('documents').upload(fileName, selectedFile);
+                finalUrl = supabase.storage.from('documents').getPublicUrl(fileName).data.publicUrl;
+            } catch (e: any) { alert("Erreur upload: " + e.message); return; }
+          } else if (editingResourceId && resFormContent) {
+              // Si on édite et qu'on n'a pas changé le fichier, on garde l'ancien URL
+              finalUrl = resFormContent; 
+          }
+      } else if (resFormType === 'text') {
+          description = resFormContent;
+      } else {
+          // Link ou Video
+          finalUrl = resFormContent;
+      }
+      
+      const payload = { 
+          title: resFormTitle, 
+          file_type: resFormType, 
+          category: resFormCategory, 
+          access_scope: 'global', 
+          target_structure_id: null, 
+          file_url: finalUrl, 
+          description, 
+          uploaded_by: user.id 
+      };
+      
       if (editingResourceId) await supabase.from('resources').update(payload).eq('id', editingResourceId);
       else await supabase.from('resources').insert(payload);
+      
       await refreshData(); setIsModalOpen(false);
   };
+
+  // Admin Handlers
   const prepareEditUser = (u: User) => { setModalMode('user'); setEditingUserId(u.id); setUserFormName(u.name); setUserFormEmail(u.email); setUserFormRole(u.role); setUserFormStructure(u.structure_id || (structures[0] ? structures[0].id : '')); setIsModalOpen(true); }
   const prepareInviteUser = () => { setModalMode('user'); setEditingUserId(null); setUserFormName(''); setUserFormEmail(''); setUserFormRole('Conseiller'); setUserFormStructure(structures[0] ? structures[0].id : ''); setIsModalOpen(true); }
   const handleSubmitUser = async () => {
@@ -205,7 +255,7 @@ export const Dashboard = ({ user, onLogout, onOpenLegal, allowedDomains, onAllow
 
     return (
         <div className="space-y-12">
-            {articles.length > 0 && (<section><h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2"><AlignLeft className="text-amber-500"/> Articles & Tutoriels</h3><div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">{articles.map(r => (<div key={r.id} className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col h-full hover:shadow-md transition-shadow relative group"><div className="flex justify-between items-start mb-2"><Badge color="green">{r.category}</Badge>{isAdmin && <div className="flex gap-1"><button onClick={() => { setEditingResourceId(r.id); setResFormType('text'); setResFormContent(r.description || ''); setIsModalOpen(true); setModalMode('resource'); }} className="text-slate-300 hover:text-[#116862] p-1"><Pencil size={14}/></button><button onClick={() => deleteItem('resources', r.id)} className="text-slate-300 hover:text-red-500 p-1"><Trash2 size={14}/></button></div>}</div><h4 className="font-bold text-slate-800 mb-2">{r.title}</h4><div className="text-sm text-slate-600 line-clamp-3 mb-4 flex-1">{r.description}</div><button onClick={() => setViewingResource(r)} className="text-sm font-semibold text-amber-600 hover:text-amber-700 flex items-center gap-1 mt-auto">Lire l'article <ArrowRight size={14}/></button></div>))}</div></section>)}
+            {articles.length > 0 && (<section><h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2"><AlignLeft className="text-amber-500"/> Articles & Tutoriels</h3><div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">{articles.map(r => (<div key={r.id} className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col h-full hover:shadow-md transition-shadow relative group"><div className="flex justify-between items-start mb-2"><Badge color="green">{r.category}</Badge>{isAdmin && <div className="flex gap-1"><button onClick={() => prepareEditResource(r)} className="text-slate-300 hover:text-[#116862] p-1"><Pencil size={14}/></button><button onClick={() => deleteItem('resources', r.id)} className="text-slate-300 hover:text-red-500 p-1"><Trash2 size={14}/></button></div>}</div><h4 className="font-bold text-slate-800 mb-2">{r.title}</h4><div className="text-sm text-slate-600 line-clamp-3 mb-4 flex-1">{r.description}</div><button onClick={() => setViewingResource(r)} className="text-sm font-semibold text-amber-600 hover:text-amber-700 flex items-center gap-1 mt-auto">Lire l'article <ArrowRight size={14}/></button></div>))}</div></section>)}
             {videos.length > 0 && (<section><h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2"><Video className="text-red-500"/> Vidéothèque</h3><div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">{videos.map(r => { const videoId = r.file_url ? getYoutubeId(r.file_url) : null; const thumbnailUrl = videoId ? `https://img.youtube.com/vi/${videoId}/mqdefault.jpg` : null; return (<div key={r.id} className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden hover:shadow-md transition-shadow group relative"><div className="aspect-video bg-slate-100 relative group-hover:opacity-90 transition-opacity">{thumbnailUrl ? <img src={thumbnailUrl} alt={r.title} className="w-full h-full object-cover" /> : <div className="flex items-center justify-center h-full"><Video size={48} className="text-slate-300"/></div>}<a href={r.file_url} target="_blank" rel="noreferrer" className="absolute inset-0 flex items-center justify-center bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity"><PlayCircle size={48} className="text-white drop-shadow-lg"/></a>{isAdmin && <button onClick={() => deleteItem('resources', r.id)} className="absolute top-2 right-2 bg-white/90 p-1.5 rounded-full text-red-500 hover:bg-red-50 opacity-0 group-hover:opacity-100 transition-opacity"><Trash2 size={12}/></button>}</div><div className="p-3"><h4 className="font-bold text-sm text-slate-800 truncate">{r.title}</h4><span className="text-xs text-slate-500">{r.category}</span></div></div>); })}</div></section>)}
             {tools.length > 0 && (<section><h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2"><LinkIcon className="text-[#116862]"/> Outils</h3><div className="grid grid-cols-1 md:grid-cols-3 gap-4">{tools.map(r => <div key={r.id} className="bg-white p-3 rounded border flex items-center gap-3"><Globe size={20} className="text-[#116862]"/><a href={r.file_url} target="_blank" className="flex-1 truncate font-medium text-slate-700">{r.title}</a>{isAdmin && <button onClick={()=>deleteItem('resources',r.id)}><Trash2 size={14} className="text-slate-300 hover:text-red-500"/></button>}</div>)}</div></section>)}
             {files.length > 0 && (<section><h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2"><Download className="text-blue-500"/> Fichiers</h3><div className="grid grid-cols-1 md:grid-cols-4 gap-4">{files.map(r => <div key={r.id} className="bg-white p-4 rounded border flex flex-col"><div className="flex justify-between"><FileText className="text-blue-500"/>{isAdmin && <button onClick={()=>deleteItem('resources',r.id)}><Trash2 size={14} className="text-slate-300 hover:text-red-500"/></button>}</div><h4 className="font-bold text-sm mt-2">{r.title}</h4><a href={r.file_url} target="_blank" className="mt-4 text-xs font-bold text-blue-600 flex items-center gap-1"><Download size={12}/> Télécharger</a></div>)}</div></section>)}
@@ -250,7 +300,6 @@ export const Dashboard = ({ user, onLogout, onOpenLegal, allowedDomains, onAllow
                     <div className="px-4 mt-8">
                         <p className="text-[10px] text-slate-500 text-center mb-2 leading-tight">Téléchargez gratuitement notre "anonymiseur" de CV pour utiliser l'IA en toute discrétion</p>
                         <a href="https://solutions.silveria.fr/" target="_blank" rel="noopener noreferrer" className="flex justify-center hover:opacity-80 transition-opacity">
-                            {/* LOGO CVforIA AGRANDI */}
                             <img src="/logo-anonymiseur.png" alt="Anonymiseur Silveria" className="h-auto w-48 object-contain" />
                         </a>
                     </div>
@@ -268,7 +317,6 @@ export const Dashboard = ({ user, onLogout, onOpenLegal, allowedDomains, onAllow
          <div>
             <div className="p-6 border-b border-slate-100">
                <div className="flex items-center gap-2 text-[#116862] font-bold text-xl">
-                   {/* Logo Desktop */}
                    <img src="/logo.png" alt="Logo" className="h-10 w-auto object-contain" />
                </div>
                <div className="mt-4 p-2 bg-[#116862]/10 rounded text-xs font-bold text-[#116862]">{user.missionLocale}</div>
@@ -283,8 +331,7 @@ export const Dashboard = ({ user, onLogout, onOpenLegal, allowedDomains, onAllow
             <div className="px-4 mt-6">
                 <p className="text-[10px] text-slate-500 text-center mb-2 leading-tight">Téléchargez gratuitement notre "anonymiseur" de CV pour utiliser l'IA en toute discrétion</p>
                 <a href="https://solutions.silveria.fr/" target="_blank" rel="noopener noreferrer" className="flex justify-center hover:scale-105 transition-transform">
-                    {/* LOGO CVforIA AGRANDI */}
-                    <img src="/logo-anonymiseur.png" alt="Anonymiseur Silveria" className="h-auto w-48 object-contain" />
+                    <img src="/logo-anonymiseur.png" alt="Anonymiseur Silveria" className="h-auto w-40 object-contain" />
                 </a>
             </div>
          </div>
@@ -307,7 +354,7 @@ export const Dashboard = ({ user, onLogout, onOpenLegal, allowedDomains, onAllow
                 <h1 className="text-2xl font-bold">{currentTab === 'prompts' ? 'Promptothèque' : 'Centre de Ressources'}</h1>
                 <button onClick={() => { 
                        if (currentTab === 'prompts') prepareCreatePrompt();
-                       else { setModalMode('resource'); setEditingResourceId(null); setSelectedFile(null); setResFormType('file'); setResFormContent(''); setIsModalOpen(true); }
+                       else { prepareCreateResource(); }
                    }} className="bg-[#116862] text-white px-4 py-2 rounded-lg flex items-center gap-2 text-sm font-bold shadow-md hover:bg-[#0e524d]"><Plus size={18} /> Ajouter</button>
              </div>
          )}
@@ -323,13 +370,7 @@ export const Dashboard = ({ user, onLogout, onOpenLegal, allowedDomains, onAllow
                         <div className="flex items-center gap-3"><div className="w-10 h-10 bg-slate-100 rounded-full flex items-center justify-center font-bold text-slate-600">{p.avatar}</div><div><h3 className="font-bold text-slate-800 flex items-center gap-2">{p.title} {p.isFork && p.parentAuthor && <span className="text-[10px] bg-[#116862]/10 text-[#116862] px-2 py-0.5 rounded-full border border-[#116862]/20"><GitFork size={10} className="mr-1"/> Variante de {p.parentAuthor}</span>}</h3><p className="text-xs text-slate-500">{p.author} • {p.missionLocale}</p></div></div>
                         <div className="flex items-center gap-2">
                             <Badge>{p.tags[0]}</Badge>
-                            <button
-                                onClick={() => copyPromptToClipboard(p.content)}
-                                className="text-slate-300 hover:text-[#116862] p-1"
-                                title="Copier"
-                            >
-                                <Copy size={14} />
-                            </button>
+                            <button onClick={() => copyPromptToClipboard(p.content)} className="text-slate-300 hover:text-[#116862] p-1" title="Copier"><Copy size={14} /></button>
                             {(isAdmin || p.user_id === user.id) && <button onClick={() => prepareEditPrompt(p)} className="text-slate-300 hover:text-[#116862] p-1"><Pencil size={14}/></button>}
                             {isAdmin && <button onClick={() => deleteItem('prompts', p.id)} className="text-slate-300 hover:text-red-500 p-1"><Trash2 size={14}/></button>}
                         </div>
@@ -357,16 +398,49 @@ export const Dashboard = ({ user, onLogout, onOpenLegal, allowedDomains, onAllow
                <div className="flex justify-between items-center mb-6"><h3 className="text-xl font-bold">Édition</h3><button onClick={() => setIsModalOpen(false)}><X /></button></div>
                <form onSubmit={(e) => { e.preventDefault(); const fd = new FormData(e.currentTarget); 
                   if(modalMode === 'prompt') handleSubmitPrompt();
-                  else if(modalMode === 'resource') handleCreateResource(fd.get('title') as string, fd.get('category') as string, 'global', selectedFile);
+                  else if(modalMode === 'resource') handleCreateResource();
                   else if(modalMode === 'structure') handleCreateStructure(fd.get('name') as string, fd.get('city') as string);
                   else if(modalMode === 'domain') handleCreateDomain();
                   else if(modalMode === 'user') handleSubmitUser();
                }} className="space-y-4">
+                  
                   {modalMode === 'prompt' && <><input value={promptFormTitle} onChange={e=>setPromptFormTitle(e.target.value)} className="w-full border p-2 rounded" placeholder="Titre"/><textarea value={promptFormContent} onChange={e=>setPromptFormContent(e.target.value)} rows={5} className="w-full border p-2 rounded" placeholder="Contenu..."/></>}
-                  {modalMode === 'resource' && <><input name="title" className="w-full border p-2 rounded" placeholder="Titre"/><select name="category" className="w-full border p-2 rounded"><option>Formation</option><option>Outil</option></select><input type="file" onChange={e => e.target.files && setSelectedFile(e.target.files[0])}/></>}
+                  
+                  {/* --- CORRECTION DU FORMULAIRE RESSOURCE --- */}
+                  {modalMode === 'resource' && (
+                     <>
+                        <div><label className="block text-xs font-bold text-slate-500 mb-1">Titre</label><input value={resFormTitle} onChange={e=>setResFormTitle(e.target.value)} required className="w-full border p-2 rounded" placeholder="Titre de la ressource"/></div>
+                        
+                        <div>
+                            <label className="block text-xs font-bold text-slate-500 mb-2">Type</label>
+                            <div className="flex bg-slate-100 p-1 rounded-lg">
+                                <button type="button" onClick={() => setResFormType('file')} className={`flex-1 py-1.5 text-xs font-medium rounded-md transition-all ${resFormType === 'file' ? 'bg-white shadow text-[#116862]' : 'text-slate-500'}`}>Fichier</button>
+                                <button type="button" onClick={() => setResFormType('text')} className={`flex-1 py-1.5 text-xs font-medium rounded-md transition-all ${resFormType === 'text' ? 'bg-white shadow text-[#116862]' : 'text-slate-500'}`}>Article</button>
+                                <button type="button" onClick={() => setResFormType('link')} className={`flex-1 py-1.5 text-xs font-medium rounded-md transition-all ${resFormType === 'link' ? 'bg-white shadow text-[#116862]' : 'text-slate-500'}`}>Lien</button>
+                                <button type="button" onClick={() => setResFormType('video')} className={`flex-1 py-1.5 text-xs font-medium rounded-md transition-all ${resFormType === 'video' ? 'bg-white shadow text-[#116862]' : 'text-slate-500'}`}>Vidéo</button>
+                            </div>
+                        </div>
+
+                        {resFormType === 'file' && (
+                            <div className="border-2 border-dashed border-slate-300 rounded-lg p-6 text-center cursor-pointer relative hover:bg-slate-50">
+                                <input type="file" className="absolute inset-0 opacity-0 cursor-pointer" onChange={(e) => {if(e.target.files && e.target.files[0]) setSelectedFile(e.target.files[0]);}} />
+                                <div className="flex flex-col items-center pointer-events-none">
+                                    <UploadCloud className="text-slate-400 mb-2" size={32} />
+                                    <span className="text-sm font-medium text-slate-600">{selectedFile ? selectedFile.name : (editingResourceId && resFormContent ? "Fichier actuel conservé (cliquer pour changer)" : "Cliquez pour sélectionner")}</span>
+                                </div>
+                            </div>
+                        )}
+                        {resFormType === 'text' && <div><label className="block text-xs font-bold text-slate-500 mb-1">Contenu de l'article</label><textarea value={resFormContent} onChange={(e) => setResFormContent(e.target.value)} placeholder="Écrivez votre article..." rows={6} className="w-full border p-2 rounded font-mono text-sm" /></div>}
+                        {(resFormType === 'link' || resFormType === 'video') && <div><label className="block text-xs font-bold text-slate-500 mb-1">URL</label><input type="url" value={resFormContent} onChange={(e) => setResFormContent(e.target.value)} placeholder={resFormType === 'video' ? "https://youtube.com/watch?v=..." : "https://exemple.com"} className="w-full border p-2 rounded" /></div>}
+                        
+                        <div><label className="block text-xs font-bold text-slate-500 mb-1">Catégorie</label><select value={resFormCategory} onChange={e=>setResFormCategory(e.target.value)} className="w-full border p-2 rounded bg-white"><option>Formation</option><option>Veille</option><option>Juridique</option><option>Outil</option><option>Interne</option></select></div>
+                     </>
+                  )}
+
                   {modalMode === 'structure' && <><input name="name" className="w-full border p-2 rounded" placeholder="Nom Structure" required/><input name="city" className="w-full border p-2 rounded" placeholder="Ville" required/></>}
                   {modalMode === 'domain' && <><input value={domainFormValue} onChange={e=>setDomainFormValue(e.target.value)} className="w-full border p-2 rounded" placeholder="domaine.com" required/><select value={domainFormStructure} onChange={e=>setDomainFormStructure(e.target.value)} className="w-full border p-2 rounded"><option value="">-- Structure --</option>{structures.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}</select></>}
                   {modalMode === 'user' && <><input value={userFormName} onChange={e=>setUserFormName(e.target.value)} className="w-full border p-2 rounded" placeholder="Nom"/><input value={userFormEmail} onChange={e=>setUserFormEmail(e.target.value)} className="w-full border p-2 rounded" placeholder="Email"/><select value={userFormRole} onChange={e=>setUserFormRole(e.target.value)} className="w-full border p-2 rounded"><option>Conseiller</option><option>Admin</option></select></>}
+                  
                   <button className="bg-[#116862] text-white px-4 py-2 rounded font-bold w-full">Valider</button>
                </form>
             </div>
