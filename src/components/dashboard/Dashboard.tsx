@@ -4,7 +4,7 @@ import {
   BookOpen, GitFork, Users, Search, FileText, Video, Download, Plus, 
   ArrowRight, X, LogOut, Building2, Globe, UploadCloud, UserPlus, Trash2, 
   ShieldCheck, Link as LinkIcon, AlignLeft, ExternalLink, Eye, Pencil, Mail, PlayCircle,
-  Menu // <-- Import de l'icône Menu pour le mobile
+  Menu
 } from 'lucide-react';
 
 import { supabase } from '@/lib/supabase';
@@ -40,8 +40,6 @@ export const Dashboard = ({ user, onLogout, onOpenLegal, allowedDomains, onAllow
   const [modalMode, setModalMode] = useState('');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [viewingResource, setViewingResource] = useState<Resource | null>(null);
-  
-  // --- NOUVEAU : État pour le menu mobile ---
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   
   // Filtres
@@ -214,9 +212,8 @@ export const Dashboard = ({ user, onLogout, onOpenLegal, allowedDomains, onAllow
       {/* 1. HEADER MOBILE AVEC LOGO ET MENU */}
       <div className="md:hidden bg-white border-b p-4 flex justify-between items-center sticky top-0 z-20 shadow-sm">
          <div className="flex items-center gap-2 font-bold text-lg text-indigo-600">
-             {/* Logo Mobile */}
-             <img src="/logo.png" alt="Logo" className="h-8 w-auto object-contain" />
-             <span>IAMESRESSOURCES</span>
+             {/* Logo Mobile (Sans texte) */}
+             <img src="/logo.png" alt="Logo" className="h-10 w-auto object-contain" />
          </div>
          <button onClick={() => setIsMobileMenuOpen(true)} className="text-slate-600 p-1"><Menu /></button>
       </div>
@@ -253,9 +250,8 @@ export const Dashboard = ({ user, onLogout, onOpenLegal, allowedDomains, onAllow
          <div>
             <div className="p-6 border-b border-slate-100">
                <div className="flex items-center gap-2 text-indigo-600 font-bold text-xl">
-                   {/* Logo Desktop */}
-                   <img src="/logo.png" alt="Logo" className="h-8 w-auto object-contain" />
-                   <span>IAMESRESSOURCES</span>
+                   {/* Logo Desktop (Sans texte) */}
+                   <img src="/logo.png" alt="Logo" className="h-10 w-auto object-contain" />
                </div>
                <div className="mt-4 p-2 bg-indigo-50 rounded text-xs font-bold text-indigo-900">{user.missionLocale}</div>
             </div>
