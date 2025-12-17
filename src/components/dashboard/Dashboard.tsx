@@ -47,7 +47,7 @@ export const Dashboard = ({ user, onLogout, onOpenLegal, allowedDomains, onAllow
 
   // Filtres
   const [isCustomTag, setIsCustomTag] = useState(false);
-  const [availableCategories, setAvailableCategories] = useState(['Administratif', 'Relation Jeunes', 'Direction', 'RH', 'Projets', 'Autre']);
+  const [availableCategories, setAvailableCategories] = useState(['Administratif', 'Emploi', 'RH', 'Projets', 'Autre']);
   const [selectedCategory, setSelectedCategory] = useState('Tous');
 
   // Formulaires
