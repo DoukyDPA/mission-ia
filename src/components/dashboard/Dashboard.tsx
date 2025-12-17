@@ -1,9 +1,10 @@
 // src/components/dashboard/Dashboard.tsx
 import React, { useState, useEffect, useCallback } from 'react';
 import { 
-  BookOpen, Sparkles, GitFork, Users, Search, FileText, Video, Download, Plus, 
+  BookOpen, GitFork, Users, Search, FileText, Video, Download, Plus, 
   ArrowRight, X, LogOut, Building2, Globe, UploadCloud, UserPlus, Trash2, 
-  ShieldCheck, Link as LinkIcon, AlignLeft, ExternalLink, Eye, Pencil, Mail, PlayCircle 
+  ShieldCheck, Link as LinkIcon, AlignLeft, ExternalLink, Eye, Pencil, Mail, PlayCircle,
+  Menu // <-- Import de l'icône Menu pour le mobile
 } from 'lucide-react';
 
 import { supabase } from '@/lib/supabase';
@@ -13,7 +14,7 @@ import { Modal } from '@/components/ui/Modal';
 import { SidebarItem } from '@/components/ui/SidebarItem';
 import { Badge } from '@/components/ui/Badge';
 
-// Données Mock (pour éviter les erreurs si la DB est vide au départ)
+// Données Mock
 const MOCK_STRUCTURES = [{ id: 1, name: "Mission Locale de Lyon", city: "Lyon" }];
 const MOCK_PROMPTS = [{ id: 1, title: "Exemple", content: "Contenu...", author: "Admin", role: "Admin", avatar: "AD", missionLocale: "National", date: "Hier", tags: ["Administratif"], likes: 0, forks: 0, isFork: false }];
 
@@ -40,32 +41,31 @@ export const Dashboard = ({ user, onLogout, onOpenLegal, allowedDomains, onAllow
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [viewingResource, setViewingResource] = useState<Resource | null>(null);
   
-  // Filtres & Tags
+  // --- NOUVEAU : État pour le menu mobile ---
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  
+  // Filtres
   const [isCustomTag, setIsCustomTag] = useState(false);
   const [availableCategories, setAvailableCategories] = useState(['Administratif', 'Relation Jeunes', 'Direction', 'RH', 'Projets', 'Autre']);
   const [selectedCategory, setSelectedCategory] = useState('Tous');
 
-  // --- ÉTATS FORMULAIRES ---
-  // Prompts
+  // Formulaires
   const [editingPromptId, setEditingPromptId] = useState<string | number | null>(null);
   const [promptFormTitle, setPromptFormTitle] = useState('');
   const [promptFormContent, setPromptFormContent] = useState('');
   const [promptFormTag, setPromptFormTag] = useState('Administratif');
   const [parentPromptId, setParentPromptId] = useState<string | number | null>(null);
 
-  // Ressources
   const [editingResourceId, setEditingResourceId] = useState<string | number | null>(null);
   const [resFormType, setResFormType] = useState<'file' | 'text' | 'link' | 'video'>('file');
   const [resFormContent, setResFormContent] = useState('');
 
-  // Admin : Utilisateurs
   const [editingUserId, setEditingUserId] = useState<string | number | null>(null);
   const [userFormEmail, setUserFormEmail] = useState('');
   const [userFormName, setUserFormName] = useState('');
   const [userFormRole, setUserFormRole] = useState('Conseiller');
   const [userFormStructure, setUserFormStructure] = useState<string | number>('');
 
-  // Admin : Domaines
   const [domainFormValue, setDomainFormValue] = useState('');
   const [domainFormStructure, setDomainFormStructure] = useState<string | number>('');
 
@@ -74,9 +74,7 @@ export const Dashboard = ({ user, onLogout, onOpenLegal, allowedDomains, onAllow
   // --- REFRESH DATA ---
   const refreshData = useCallback(async () => {
     if (!supabase) return; 
-
     try {
-        // Prompts
         const { data: pData } = await supabase.from('prompts').select(`*, profiles(full_name, avatar_url, role), structures(name)`).order('created_at', { ascending: false });
         if (pData) {
             const promptAuthors = new Map();
@@ -98,123 +96,67 @@ export const Dashboard = ({ user, onLogout, onOpenLegal, allowedDomains, onAllow
                 user_id: p.user_id
             })));
         }
-
-        // Ressources
         const { data: rData } = await supabase.from('resources').select('*').order('created_at', { ascending: false });
         if (rData) setResources(rData.map((r: any) => ({ ...r, type: r.file_type || 'file' })));
-
-        // Structures
         const { data: sData } = await supabase.from('structures').select('*');
         if (sData) setStructures(sData);
-
-        // Domaines
         const { data: dData } = await supabase.from('allowed_domains').select('*, structures(name)');
         if (dData) {
             onAllowedDomainsChange(dData.map((d: any) => ({ id: d.id, domain: d.domain, structure_id: d.structure_id, structure_name: d.structures?.name })));
         }
-
-        // Utilisateurs (Admin seulement)
         if (isAdmin) {
             const { data: uData } = await supabase.from('profiles').select('*, structures(name)');
-            if (uData) {
-                setAdminUsers(uData.map((u: any) => ({
-                    id: u.id, email: u.email, name: u.full_name || 'Sans nom', role: u.role,
-                    missionLocale: u.structures?.name || 'Non assigné', avatar: (u.full_name || 'U').substring(0,2).toUpperCase(), structure_id: u.structure_id
-                })));
-            }
+            if (uData) setAdminUsers(uData.map((u: any) => ({ id: u.id, email: u.email, name: u.full_name || 'Sans nom', role: u.role, missionLocale: u.structures?.name || 'Non assigné', avatar: (u.full_name || 'U').substring(0,2).toUpperCase(), structure_id: u.structure_id })));
         }
     } catch (e) { console.error("Erreur refresh:", e); }
   }, [isAdmin, onAllowedDomainsChange]);
 
   useEffect(() => {
-    if (!supabase) {
-      setPrompts(MOCK_PROMPTS); setStructures(MOCK_STRUCTURES); onAllowedDomainsChange([]);
-    } else { refreshData(); }
+    if (!supabase) { setPrompts(MOCK_PROMPTS); setStructures(MOCK_STRUCTURES); onAllowedDomainsChange([]); } 
+    else { refreshData(); }
   }, [refreshData, onAllowedDomainsChange]);
 
-
-  // --- HANDLERS (LOGIQUE MÉTIER) ---
-  
-  // PROMPTS
-  const prepareCreatePrompt = () => {
-      setModalMode('prompt'); setEditingPromptId(null); setPromptFormTitle(''); setPromptFormContent('');
-      setPromptFormTag(availableCategories[0]); setParentPromptId(null); setIsCustomTag(false); setIsModalOpen(true);
-  }
-  const prepareForkPrompt = (original: Prompt) => {
-      setModalMode('prompt'); setEditingPromptId(null); setPromptFormTitle(`Variante : ${original.title}`);
-      setPromptFormContent(original.content); setPromptFormTag(original.tags[0] || 'Administratif');
-      setParentPromptId(original.id); setIsModalOpen(true);
-  }
-  const prepareEditPrompt = (original: Prompt) => {
-      setModalMode('prompt'); setEditingPromptId(original.id); setPromptFormTitle(original.title);
-      setPromptFormContent(original.content); setPromptFormTag(original.tags[0] || availableCategories[0]);
-      setIsCustomTag(!availableCategories.includes(original.tags[0])); setParentPromptId(null); setIsModalOpen(true);
-  }
+  // --- HANDLERS ---
+  const prepareCreatePrompt = () => { setModalMode('prompt'); setEditingPromptId(null); setPromptFormTitle(''); setPromptFormContent(''); setPromptFormTag(availableCategories[0]); setParentPromptId(null); setIsCustomTag(false); setIsModalOpen(true); }
+  const prepareForkPrompt = (original: Prompt) => { setModalMode('prompt'); setEditingPromptId(null); setPromptFormTitle(`Variante : ${original.title}`); setPromptFormContent(original.content); setPromptFormTag(original.tags[0] || 'Administratif'); setParentPromptId(original.id); setIsModalOpen(true); }
+  const prepareEditPrompt = (original: Prompt) => { setModalMode('prompt'); setEditingPromptId(original.id); setPromptFormTitle(original.title); setPromptFormContent(original.content); setPromptFormTag(original.tags[0] || availableCategories[0]); setIsCustomTag(!availableCategories.includes(original.tags[0])); setParentPromptId(null); setIsModalOpen(true); }
   const handleSubmitPrompt = async () => {
     if (!supabase) { setIsModalOpen(false); return; }
     try {
       const payload = { title: promptFormTitle, content: promptFormContent, tags: [promptFormTag] };
-      if (editingPromptId) {
-          const { error } = await supabase.from('prompts').update(payload).eq('id', editingPromptId);
-          if (error) throw error;
-      } else {
+      if (editingPromptId) await supabase.from('prompts').update(payload).eq('id', editingPromptId);
+      else {
           const { data: profile } = await supabase.from('profiles').select('structure_id').eq('id', user.id).single();
-          const { error } = await supabase.from('prompts').insert({ ...payload, user_id: user.id, structure_id: profile?.structure_id, is_fork: !!parentPromptId, parent_id: parentPromptId });
-          if (error) throw error;
+          await supabase.from('prompts').insert({ ...payload, user_id: user.id, structure_id: profile?.structure_id, is_fork: !!parentPromptId, parent_id: parentPromptId });
       }
       await refreshData(); setIsModalOpen(false);
     } catch (err: any) { alert("Erreur : " + err.message); }
   };
-
-  // RESSOURCES
   const handleCreateResource = async (title: string, category: string, scope: string, file: File | null, targetStructId?: string) => {
       let finalUrl = '', description = '';
       if (!supabase) { setIsModalOpen(false); return; }
-      
       if (resFormType === 'file' && file) {
           try {
               const fileName = `${user.id}/${Date.now()}.${file.name.split('.').pop()}`;
-              const { error } = await supabase.storage.from('documents').upload(fileName, file);
-              if (error) throw error;
+              await supabase.storage.from('documents').upload(fileName, file);
               finalUrl = supabase.storage.from('documents').getPublicUrl(fileName).data.publicUrl;
           } catch (e: any) { alert("Erreur upload: " + e.message); return; }
-      } else {
-          if(resFormType === 'text') description = resFormContent;
-          else finalUrl = resFormContent;
-      }
-      
+      } else { if(resFormType === 'text') description = resFormContent; else finalUrl = resFormContent; }
       const payload = { title, file_type: resFormType, category, access_scope: scope, target_structure_id: scope === 'local' ? targetStructId : null, file_url: finalUrl, description, uploaded_by: user.id };
-      
       if (editingResourceId) await supabase.from('resources').update(payload).eq('id', editingResourceId);
       else await supabase.from('resources').insert(payload);
-      
       await refreshData(); setIsModalOpen(false);
   };
-
-  // ADMIN: USERS
-  const prepareEditUser = (u: User) => {
-      setModalMode('user'); setEditingUserId(u.id); setUserFormName(u.name); setUserFormEmail(u.email);
-      setUserFormRole(u.role); setUserFormStructure(u.structure_id || (structures[0] ? structures[0].id : ''));
-      setIsModalOpen(true);
-  }
-  const prepareInviteUser = () => {
-      setModalMode('user'); setEditingUserId(null); setUserFormName(''); setUserFormEmail('');
-      setUserFormRole('Conseiller'); setUserFormStructure(structures[0] ? structures[0].id : '');
-      setIsModalOpen(true);
-  }
+  const prepareEditUser = (u: User) => { setModalMode('user'); setEditingUserId(u.id); setUserFormName(u.name); setUserFormEmail(u.email); setUserFormRole(u.role); setUserFormStructure(u.structure_id || (structures[0] ? structures[0].id : '')); setIsModalOpen(true); }
+  const prepareInviteUser = () => { setModalMode('user'); setEditingUserId(null); setUserFormName(''); setUserFormEmail(''); setUserFormRole('Conseiller'); setUserFormStructure(structures[0] ? structures[0].id : ''); setIsModalOpen(true); }
   const handleSubmitUser = async () => {
-      if (!supabase) { alert("Simulation invitation..."); setIsModalOpen(false); return; }
+      if (!supabase) { alert("Simulation..."); setIsModalOpen(false); return; }
       try {
-          if (editingUserId) {
-              await supabase.from('profiles').update({ full_name: userFormName, role: userFormRole, structure_id: userFormStructure }).eq('id', editingUserId);
-          } else {
-              alert(`Invitation (simulation): Email envoyé à ${userFormEmail}.`);
-          }
+          if (editingUserId) await supabase.from('profiles').update({ full_name: userFormName, role: userFormRole, structure_id: userFormStructure }).eq('id', editingUserId);
+          else alert(`Invitation envoyée à ${userFormEmail}.`);
           await refreshData(); setIsModalOpen(false);
       } catch (err: any) { alert("Erreur : " + err.message); }
   }
-
-  // ADMIN: STRUCTURES & DOMAINES
   const handleCreateStructure = async (name: string, city: string) => {
       if (!supabase) { setStructures([...structures, {id: Date.now(), name, city}]); setIsModalOpen(false); return; }
       const { error } = await supabase.from('structures').insert({ name, city });
@@ -226,93 +168,30 @@ export const Dashboard = ({ user, onLogout, onOpenLegal, allowedDomains, onAllow
       const { error } = await supabase.from('allowed_domains').insert({ domain: normalized, structure_id: domainFormStructure || null, created_by: user.id });
       if (error) alert("Erreur: " + error.message); else { await refreshData(); setIsModalOpen(false); }
   }
-
-  // SUPPRESSION GÉNÉRIQUE
   const deleteItem = async (table: string, id: string|number) => {
       if(!confirm("Confirmer la suppression ?")) return;
       if(supabase) { await supabase.from(table).delete().eq('id', id); await refreshData(); }
   };
 
-
-  // --- VUES ADMIN (RESTAURÉES) ---
-  
+  // --- RENDUS ---
   const renderStructures = () => (
     <div className="max-w-4xl mx-auto">
-        <div className="flex justify-between items-center mb-6">
-            <h2 className="text-xl font-bold text-slate-800">Gestion des Structures</h2>
-            <button onClick={() => { setModalMode('structure'); setIsModalOpen(true); }} className="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center hover:bg-indigo-700">
-                <Plus size={16} className="mr-2"/> Ajouter
-            </button>
-        </div>
-        <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-            <table className="w-full text-sm text-left">
-                <thead className="bg-slate-50 border-b"><tr><th className="p-4">Nom</th><th className="p-4">Ville</th><th className="p-4 text-right">Actions</th></tr></thead>
-                <tbody>
-                    {structures.map(s => (
-                    <tr key={s.id} className="border-b last:border-0"><td className="p-4 font-medium">{s.name}</td><td className="p-4 text-slate-500">{s.city}</td><td className="p-4 text-right"><button onClick={() => deleteItem('structures', s.id)} className="text-slate-400 hover:text-red-500"><Trash2 size={16} /></button></td></tr>
-                    ))}
-                </tbody>
-            </table>
-        </div>
+        <div className="flex justify-between items-center mb-6"><h2 className="text-xl font-bold text-slate-800">Gestion des Structures</h2><button onClick={() => { setModalMode('structure'); setIsModalOpen(true); }} className="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center hover:bg-indigo-700"><Plus size={16} className="mr-2"/> Ajouter</button></div>
+        <div className="bg-white rounded-xl border border-slate-200 overflow-hidden"><table className="w-full text-sm text-left"><thead className="bg-slate-50 border-b"><tr><th className="p-4">Nom</th><th className="p-4">Ville</th><th className="p-4 text-right">Actions</th></tr></thead><tbody>{structures.map(s => (<tr key={s.id} className="border-b last:border-0"><td className="p-4 font-medium">{s.name}</td><td className="p-4 text-slate-500">{s.city}</td><td className="p-4 text-right"><button onClick={() => deleteItem('structures', s.id)} className="text-slate-400 hover:text-red-500"><Trash2 size={16} /></button></td></tr>))}</tbody></table></div>
     </div>
   );
-
   const renderUsers = () => (
     <div className="max-w-4xl mx-auto">
-        <div className="flex justify-between items-center mb-6">
-            <h2 className="text-xl font-bold text-slate-800">Gestion des Utilisateurs</h2>
-            <button onClick={prepareInviteUser} className="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center hover:bg-indigo-700">
-                <UserPlus size={16} className="mr-2"/> Inviter un salarié
-            </button>
-        </div>
-        <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-            <table className="w-full text-sm text-left">
-                <thead className="bg-slate-50 text-slate-500 font-medium border-b border-slate-200">
-                    <tr><th className="px-6 py-4">Utilisateur</th><th className="px-6 py-4">Rôle</th><th className="px-6 py-4">Structure</th><th className="px-6 py-4 text-right">Actions</th></tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                    {adminUsers.map(u => (
-                        <tr key={u.id} className="hover:bg-slate-50">
-                            <td className="px-6 py-4"><div className="flex items-center gap-3"><div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-xs font-bold text-slate-600">{u.avatar}</div><div><div className="font-medium text-slate-900">{u.name}</div><div className="text-xs text-slate-500">{u.email}</div></div></div></td>
-                            <td className="px-6 py-4"><span className="bg-slate-100 px-2 py-1 rounded text-xs">{u.role}</span></td>
-                            <td className="px-6 py-4 text-slate-600">{u.missionLocale}</td>
-                            <td className="px-6 py-4 text-right"><button onClick={() => prepareEditUser(u)} className="text-indigo-600 hover:underline text-xs flex items-center justify-end gap-1"><Pencil size={12}/> Modifier</button></td>
-                        </tr>
-                    ))}
-                </tbody>
-            </table>
-        </div>
+        <div className="flex justify-between items-center mb-6"><h2 className="text-xl font-bold text-slate-800">Gestion des Utilisateurs</h2><button onClick={prepareInviteUser} className="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center hover:bg-indigo-700"><UserPlus size={16} className="mr-2"/> Inviter</button></div>
+        <div className="bg-white rounded-xl border border-slate-200 overflow-hidden"><table className="w-full text-sm text-left"><thead className="bg-slate-50 text-slate-500 font-medium border-b border-slate-200"><tr><th className="px-6 py-4">Utilisateur</th><th className="px-6 py-4">Rôle</th><th className="px-6 py-4">Structure</th><th className="px-6 py-4 text-right">Actions</th></tr></thead><tbody className="divide-y divide-slate-100">{adminUsers.map(u => (<tr key={u.id} className="hover:bg-slate-50"><td className="px-6 py-4"><div className="flex items-center gap-3"><div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-xs font-bold text-slate-600">{u.avatar}</div><div><div className="font-medium text-slate-900">{u.name}</div><div className="text-xs text-slate-500">{u.email}</div></div></div></td><td className="px-6 py-4"><span className="bg-slate-100 px-2 py-1 rounded text-xs">{u.role}</span></td><td className="px-6 py-4 text-slate-600">{u.missionLocale}</td><td className="px-6 py-4 text-right"><button onClick={() => prepareEditUser(u)} className="text-indigo-600 hover:underline text-xs flex items-center justify-end gap-1"><Pencil size={12}/> Modifier</button></td></tr>))}</tbody></table></div>
     </div>
   );
-
   const renderDomains = () => (
     <div className="max-w-4xl mx-auto">
-        <div className="flex justify-between items-center mb-6">
-            <h2 className="text-xl font-bold text-slate-800">Domaines autorisés</h2>
-            <button onClick={() => { setModalMode('domain'); setIsModalOpen(true); setDomainFormValue(''); setDomainFormStructure(structures[0] ? structures[0].id : ''); }} className="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center hover:bg-indigo-700">
-                <Plus size={16} className="mr-2"/> Ajouter un domaine
-            </button>
-        </div>
-        <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-            <table className="w-full text-sm text-left">
-                <thead className="bg-slate-50 text-slate-500 font-medium border-b border-slate-200">
-                    <tr><th className="px-6 py-4">Domaine</th><th className="px-6 py-4">Structure rattachée</th><th className="px-6 py-4 text-right">Actions</th></tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                    {allowedDomains.map(d => (
-                        <tr key={d.id} className="hover:bg-slate-50">
-                            <td className="px-6 py-4 font-medium text-slate-800">{d.domain}</td>
-                            <td className="px-6 py-4 text-slate-600">{d.structure_name || structures.find(s => s.id == d.structure_id)?.name || 'Non spécifié'}</td>
-                            <td className="px-6 py-4 text-right"><button onClick={() => deleteItem('allowed_domains', d.id)} className="text-red-500 hover:underline text-xs flex items-center justify-end gap-1"><Trash2 size={12}/> Supprimer</button></td>
-                        </tr>
-                    ))}
-                </tbody>
-            </table>
-        </div>
+        <div className="flex justify-between items-center mb-6"><h2 className="text-xl font-bold text-slate-800">Domaines autorisés</h2><button onClick={() => { setModalMode('domain'); setIsModalOpen(true); setDomainFormValue(''); setDomainFormStructure(structures[0] ? structures[0].id : ''); }} className="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center hover:bg-indigo-700"><Plus size={16} className="mr-2"/> Ajouter</button></div>
+        <div className="bg-white rounded-xl border border-slate-200 overflow-hidden"><table className="w-full text-sm text-left"><thead className="bg-slate-50 text-slate-500 font-medium border-b border-slate-200"><tr><th className="px-6 py-4">Domaine</th><th className="px-6 py-4">Structure</th><th className="px-6 py-4 text-right">Actions</th></tr></thead><tbody className="divide-y divide-slate-100">{allowedDomains.map(d => (<tr key={d.id} className="hover:bg-slate-50"><td className="px-6 py-4 font-medium text-slate-800">{d.domain}</td><td className="px-6 py-4 text-slate-600">{d.structure_name || structures.find(s => s.id == d.structure_id)?.name || 'Non spécifié'}</td><td className="px-6 py-4 text-right"><button onClick={() => deleteItem('allowed_domains', d.id)} className="text-red-500 hover:underline text-xs flex items-center justify-end gap-1"><Trash2 size={12}/> Supprimer</button></td></tr>))}</tbody></table></div>
     </div>
   );
-
-  // --- RENDU RESSOURCES ---
   const renderResources = () => {
     const articles = resources.filter(r => r.type === 'text');
     const videos = resources.filter(r => r.type === 'video');
@@ -321,67 +200,63 @@ export const Dashboard = ({ user, onLogout, onOpenLegal, allowedDomains, onAllow
 
     return (
         <div className="space-y-12">
-            {articles.length > 0 && (
-                <section>
-                    <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2"><AlignLeft className="text-amber-500"/> Articles & Tutoriels</h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        {articles.map(r => (
-                            <div key={r.id} className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col h-full hover:shadow-md transition-shadow relative group">
-                                <div className="flex justify-between items-start mb-2"><Badge color="green">{r.category}</Badge>{isAdmin && <div className="flex gap-1"><button onClick={() => { setEditingResourceId(r.id); setResFormType('text'); setResFormContent(r.description || ''); setIsModalOpen(true); setModalMode('resource'); }} className="text-slate-300 hover:text-indigo-600 p-1"><Pencil size={14}/></button><button onClick={() => deleteItem('resources', r.id)} className="text-slate-300 hover:text-red-500 p-1"><Trash2 size={14}/></button></div>}</div>
-                                <h4 className="font-bold text-slate-800 mb-2">{r.title}</h4>
-                                <div className="text-sm text-slate-600 line-clamp-3 mb-4 flex-1">{r.description}</div>
-                                <button onClick={() => setViewingResource(r)} className="text-sm font-semibold text-amber-600 hover:text-amber-700 flex items-center gap-1 mt-auto">Lire l'article <ArrowRight size={14}/></button>
-                            </div>
-                        ))}
-                    </div>
-                </section>
-            )}
-            {videos.length > 0 && (
-                <section>
-                    <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2"><Video className="text-red-500"/> Vidéothèque</h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                        {videos.map(r => {
-                            const videoId = r.file_url ? getYoutubeId(r.file_url) : null;
-                            const thumbnailUrl = videoId ? `https://img.youtube.com/vi/${videoId}/mqdefault.jpg` : null;
-                            return (
-                                <div key={r.id} className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden hover:shadow-md transition-shadow group relative">
-                                    <div className="aspect-video bg-slate-100 relative group-hover:opacity-90 transition-opacity">
-                                        {thumbnailUrl ? <img src={thumbnailUrl} alt={r.title} className="w-full h-full object-cover" /> : <div className="flex items-center justify-center h-full"><Video size={48} className="text-slate-300"/></div>}
-                                        <a href={r.file_url} target="_blank" rel="noreferrer" className="absolute inset-0 flex items-center justify-center bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity"><PlayCircle size={48} className="text-white drop-shadow-lg"/></a>
-                                        {isAdmin && <button onClick={() => deleteItem('resources', r.id)} className="absolute top-2 right-2 bg-white/90 p-1.5 rounded-full text-red-500 hover:bg-red-50 opacity-0 group-hover:opacity-100 transition-opacity"><Trash2 size={12}/></button>}
-                                    </div>
-                                    <div className="p-3"><h4 className="font-bold text-sm text-slate-800 truncate">{r.title}</h4><span className="text-xs text-slate-500">{r.category}</span></div>
-                                </div>
-                            );
-                        })}
-                    </div>
-                </section>
-            )}
-             {tools.length > 0 && (
-                 <section>
-                    <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2"><LinkIcon className="text-indigo-500"/> Outils</h3>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">{tools.map(r => <div key={r.id} className="bg-white p-3 rounded border flex items-center gap-3"><Globe size={20} className="text-indigo-600"/><a href={r.file_url} target="_blank" className="flex-1 truncate font-medium text-slate-700">{r.title}</a>{isAdmin && <button onClick={()=>deleteItem('resources',r.id)}><Trash2 size={14} className="text-slate-300 hover:text-red-500"/></button>}</div>)}</div>
-                 </section>
-             )}
-             {files.length > 0 && (
-                 <section>
-                    <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2"><Download className="text-blue-500"/> Fichiers</h3>
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">{files.map(r => <div key={r.id} className="bg-white p-4 rounded border flex flex-col"><div className="flex justify-between"><FileText className="text-blue-500"/>{isAdmin && <button onClick={()=>deleteItem('resources',r.id)}><Trash2 size={14} className="text-slate-300 hover:text-red-500"/></button>}</div><h4 className="font-bold text-sm mt-2">{r.title}</h4><a href={r.file_url} target="_blank" className="mt-4 text-xs font-bold text-blue-600 flex items-center gap-1"><Download size={12}/> Télécharger</a></div>)}</div>
-                 </section>
-             )}
+            {articles.length > 0 && (<section><h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2"><AlignLeft className="text-amber-500"/> Articles & Tutoriels</h3><div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">{articles.map(r => (<div key={r.id} className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col h-full hover:shadow-md transition-shadow relative group"><div className="flex justify-between items-start mb-2"><Badge color="green">{r.category}</Badge>{isAdmin && <div className="flex gap-1"><button onClick={() => { setEditingResourceId(r.id); setResFormType('text'); setResFormContent(r.description || ''); setIsModalOpen(true); setModalMode('resource'); }} className="text-slate-300 hover:text-indigo-600 p-1"><Pencil size={14}/></button><button onClick={() => deleteItem('resources', r.id)} className="text-slate-300 hover:text-red-500 p-1"><Trash2 size={14}/></button></div>}</div><h4 className="font-bold text-slate-800 mb-2">{r.title}</h4><div className="text-sm text-slate-600 line-clamp-3 mb-4 flex-1">{r.description}</div><button onClick={() => setViewingResource(r)} className="text-sm font-semibold text-amber-600 hover:text-amber-700 flex items-center gap-1 mt-auto">Lire l'article <ArrowRight size={14}/></button></div>))}</div></section>)}
+            {videos.length > 0 && (<section><h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2"><Video className="text-red-500"/> Vidéothèque</h3><div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">{videos.map(r => { const videoId = r.file_url ? getYoutubeId(r.file_url) : null; const thumbnailUrl = videoId ? `https://img.youtube.com/vi/${videoId}/mqdefault.jpg` : null; return (<div key={r.id} className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden hover:shadow-md transition-shadow group relative"><div className="aspect-video bg-slate-100 relative group-hover:opacity-90 transition-opacity">{thumbnailUrl ? <img src={thumbnailUrl} alt={r.title} className="w-full h-full object-cover" /> : <div className="flex items-center justify-center h-full"><Video size={48} className="text-slate-300"/></div>}<a href={r.file_url} target="_blank" rel="noreferrer" className="absolute inset-0 flex items-center justify-center bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity"><PlayCircle size={48} className="text-white drop-shadow-lg"/></a>{isAdmin && <button onClick={() => deleteItem('resources', r.id)} className="absolute top-2 right-2 bg-white/90 p-1.5 rounded-full text-red-500 hover:bg-red-50 opacity-0 group-hover:opacity-100 transition-opacity"><Trash2 size={12}/></button>}</div><div className="p-3"><h4 className="font-bold text-sm text-slate-800 truncate">{r.title}</h4><span className="text-xs text-slate-500">{r.category}</span></div></div>); })}</div></section>)}
+            {tools.length > 0 && (<section><h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2"><LinkIcon className="text-indigo-500"/> Outils</h3><div className="grid grid-cols-1 md:grid-cols-3 gap-4">{tools.map(r => <div key={r.id} className="bg-white p-3 rounded border flex items-center gap-3"><Globe size={20} className="text-indigo-600"/><a href={r.file_url} target="_blank" className="flex-1 truncate font-medium text-slate-700">{r.title}</a>{isAdmin && <button onClick={()=>deleteItem('resources',r.id)}><Trash2 size={14} className="text-slate-300 hover:text-red-500"/></button>}</div>)}</div></section>)}
+            {files.length > 0 && (<section><h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2"><Download className="text-blue-500"/> Fichiers</h3><div className="grid grid-cols-1 md:grid-cols-4 gap-4">{files.map(r => <div key={r.id} className="bg-white p-4 rounded border flex flex-col"><div className="flex justify-between"><FileText className="text-blue-500"/>{isAdmin && <button onClick={()=>deleteItem('resources',r.id)}><Trash2 size={14} className="text-slate-300 hover:text-red-500"/></button>}</div><h4 className="font-bold text-sm mt-2">{r.title}</h4><a href={r.file_url} target="_blank" className="mt-4 text-xs font-bold text-blue-600 flex items-center gap-1"><Download size={12}/> Télécharger</a></div>)}</div></section>)}
         </div>
     );
   };
 
-  // --- RENDU PRINCIPAL ---
-
   return (
     <div className="min-h-screen bg-slate-50 font-sans text-slate-900 flex flex-col md:flex-row">
-      {/* SIDEBAR */}
-      <aside className="w-64 bg-white border-r border-slate-200 hidden md:flex flex-col z-10 justify-between">
+      
+      {/* 1. HEADER MOBILE AVEC LOGO ET MENU */}
+      <div className="md:hidden bg-white border-b p-4 flex justify-between items-center sticky top-0 z-20 shadow-sm">
+         <div className="flex items-center gap-2 font-bold text-lg text-indigo-600">
+             {/* Logo Mobile */}
+             <img src="/logo.png" alt="Logo" className="h-8 w-auto object-contain" />
+             <span>IAMESRESSOURCES</span>
+         </div>
+         <button onClick={() => setIsMobileMenuOpen(true)} className="text-slate-600 p-1"><Menu /></button>
+      </div>
+
+      {/* 2. OVERLAY MENU MOBILE */}
+      {isMobileMenuOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-sm md:hidden">
+            <div className="bg-white w-3/4 h-full p-4 shadow-xl animate-in slide-in-from-left duration-200">
+                <div className="flex justify-between items-center mb-6">
+                    <span className="font-bold text-lg text-slate-800">Menu</span>
+                    <button onClick={() => setIsMobileMenuOpen(false)}><X className="text-slate-500"/></button>
+                </div>
+                <nav className="space-y-1">
+                    <SidebarItem icon={GitFork} label="Prompts" active={currentTab === 'prompts'} onClick={() => { setCurrentTab('prompts'); setIsMobileMenuOpen(false); }} />
+                    <SidebarItem icon={BookOpen} label="Ressources" active={currentTab === 'resources'} onClick={() => { setCurrentTab('resources'); setIsMobileMenuOpen(false); }} />
+                    {isAdmin && (
+                        <>
+                        <div className="mt-6 mb-2 px-4 text-xs font-bold text-slate-400 uppercase">Administration</div>
+                        <SidebarItem icon={Building2} label="Structures" active={currentTab === 'structures'} onClick={() => { setCurrentTab('structures'); setIsMobileMenuOpen(false); }} />
+                        <SidebarItem icon={Globe} label="Domaines" active={currentTab === 'domains'} onClick={() => { setCurrentTab('domains'); setIsMobileMenuOpen(false); }} />
+                        <SidebarItem icon={Users} label="Utilisateurs" active={currentTab === 'users'} onClick={() => { setCurrentTab('users'); setIsMobileMenuOpen(false); }} />
+                        </>
+                    )}
+                </nav>
+                <div className="absolute bottom-4 left-4 right-4">
+                     <button onClick={onLogout} className="flex items-center gap-2 text-slate-500 hover:text-red-500 w-full p-2 border border-slate-200 rounded justify-center"><LogOut size={16}/> Déconnexion</button>
+                </div>
+            </div>
+        </div>
+      )}
+
+      {/* 3. SIDEBAR DESKTOP */}
+      <aside className="w-64 bg-white border-r border-slate-200 hidden md:flex flex-col z-10 justify-between sticky top-0 h-screen">
          <div>
             <div className="p-6 border-b border-slate-100">
-               <div className="flex items-center gap-2 text-indigo-600 font-bold text-xl"><Sparkles /><span>IAMESRESSOURCES</span></div>
+               <div className="flex items-center gap-2 text-indigo-600 font-bold text-xl">
+                   {/* Logo Desktop */}
+                   <img src="/logo.png" alt="Logo" className="h-8 w-auto object-contain" />
+                   <span>IAMESRESSOURCES</span>
+               </div>
                <div className="mt-4 p-2 bg-indigo-50 rounded text-xs font-bold text-indigo-900">{user.missionLocale}</div>
             </div>
             <nav className="p-4 space-y-1">
@@ -394,7 +269,6 @@ export const Dashboard = ({ user, onLogout, onOpenLegal, allowedDomains, onAllow
             <div className="mb-2 px-2"><p className="text-sm font-bold text-slate-700 truncate">{user.name}</p><p className="text-xs text-slate-500 truncate flex items-center gap-1">{user.role} {isAdmin && <ShieldCheck size={12} className="text-indigo-600"/>}</p></div>
             <button onClick={onLogout} className="flex items-center gap-2 text-slate-500 hover:text-red-500 mb-3 ml-2 text-sm"><LogOut size={16}/> Déconnexion</button>
             <div className="flex justify-center gap-3 text-[10px] text-slate-400 border-t border-slate-200 pt-3"><button onClick={() => onOpenLegal('mentions')} className="hover:text-indigo-600">Mentions Légales</button><span>•</span><button onClick={() => onOpenLegal('privacy')} className="hover:text-indigo-600">Confidentialité</button></div>
-            {/* LOGO SILVERIA */}
             <div className="mt-4 pt-2 border-t border-slate-200 text-center">
                <div className="flex items-center justify-center gap-2 mb-1"><img src="/logo-silveria.png" alt="Silveria" className="h-6 w-auto object-contain" /></div>
                <p className="text-[9px] text-slate-400">Conçu et mis à jour par Silveria</p>
@@ -413,7 +287,6 @@ export const Dashboard = ({ user, onLogout, onOpenLegal, allowedDomains, onAllow
                    }} className="bg-indigo-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 text-sm font-bold shadow-md hover:bg-indigo-700"><Plus size={18} /> Ajouter</button>
              </div>
          )}
-
          {currentTab === 'prompts' && (
             <div className="space-y-6 max-w-4xl">
                <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar">
@@ -433,14 +306,12 @@ export const Dashboard = ({ user, onLogout, onOpenLegal, allowedDomains, onAllow
             </div>
          )}
          {currentTab === 'resources' && renderResources()}
-         
-         {/* ONGLETS ADMIN RESTAURÉS */}
          {currentTab === 'structures' && renderStructures()}
          {currentTab === 'users' && renderUsers()}
          {currentTab === 'domains' && renderDomains()}
       </main>
 
-      {/* MODALS & FORMS */}
+      {/* MODALS */}
       <Modal isOpen={!!viewingResource} onClose={() => setViewingResource(null)} title={viewingResource?.title || 'Lecture'}>
           <div className="prose prose-sm prose-slate max-w-none"><p className="whitespace-pre-wrap">{viewingResource?.description}</p></div>
       </Modal>
