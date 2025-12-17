@@ -1,3 +1,4 @@
+// src/components/dashboard/Dashboard.tsx
 import React, { useState, useEffect, useCallback } from 'react';
 import { Plus, X, UploadCloud } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
@@ -36,8 +37,8 @@ export const Dashboard = ({ user, onLogout, onOpenLegal, allowedDomains, onAllow
   const [viewingResource, setViewingResource] = useState<Resource | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   
-  // Catégories (State)
-  const [availableCategories, setAvailableCategories] = useState(['Administratif', 'Relation Jeunes', 'Direction', 'RH', 'Projets', 'Emploi', 'Autre']);
+  // Catégories (State) - AJOUT DE "Emploi" ICI
+  const [availableCategories, setAvailableCategories] = useState(['Administratif', 'Relation Jeunes', 'Emploi', 'Direction', 'RH', 'Projets', 'Autre']);
   const [selectedCategory, setSelectedCategory] = useState('Tous');
 
   // Formulaires : Prompts
@@ -75,8 +76,8 @@ export const Dashboard = ({ user, onLogout, onOpenLegal, allowedDomains, onAllow
         if (pError) throw pError;
         
         if (pData) {
-            // Mise à jour intelligente des catégories disponibles sans doublons
-            const usedTags = new Set(['Administratif', 'Relation Jeunes', 'Direction', 'RH', 'Projets', 'Autre']);
+            // Mise à jour intelligente des catégories
+            const usedTags = new Set(['Administratif', 'Relation Jeunes', 'Emploi', 'Direction', 'RH', 'Projets', 'Autre']);
             pData.forEach((p: any) => { if (p.tags && Array.isArray(p.tags)) p.tags.forEach((t: string) => usedTags.add(t)); });
             setAvailableCategories(Array.from(usedTags).sort());
 
@@ -127,7 +128,6 @@ export const Dashboard = ({ user, onLogout, onOpenLegal, allowedDomains, onAllow
   }
   const prepareEditPrompt = (original: Prompt) => { 
       setModalMode('prompt'); setEditingPromptId(original.id); setPromptFormTitle(original.title); setPromptFormContent(original.content); 
-      // Sécurisation : si le tag n'existe plus, on prend le premier dispo
       setPromptFormTag(original.tags[0] || availableCategories[0]); 
       setParentPromptId(null); setIsModalOpen(true); 
   }
@@ -143,7 +143,7 @@ export const Dashboard = ({ user, onLogout, onOpenLegal, allowedDomains, onAllow
   const prepareEditUser = (u: User) => { setModalMode('user'); setEditingUserId(u.id); setUserFormName(u.name); setUserFormEmail(u.email); setUserFormRole(u.role); setUserFormStructure(u.structure_id || (structures[0] ? structures[0].id : '')); setIsModalOpen(true); }
   const prepareInviteUser = () => { setModalMode('user'); setEditingUserId(null); setUserFormName(''); setUserFormEmail(''); setUserFormRole('Conseiller'); setUserFormStructure(structures[0] ? structures[0].id : ''); setIsModalOpen(true); }
 
-  // --- SOUMISSION DES FORMULAIRES ---
+  // --- SOUMISSION DES FORMULAIRES (CORRECTION TYPESCRIPT ICI) ---
   const handleSubmitPrompt = async () => {
     if (!supabase) { setIsModalOpen(false); return; }
     try {
@@ -163,19 +163,28 @@ export const Dashboard = ({ user, onLogout, onOpenLegal, allowedDomains, onAllow
   };
 
   const handleCreateResource = async () => {
+    // 1. Guard Clause : Si pas de supabase, on arrête
+    if (!supabase) { setIsModalOpen(false); return; }
+
     try {
         let finalUrl = resFormContent;
         if (resFormType === 'file') {
-            if (selectedFile) { const fileName = `${user.id}/${Date.now()}.${selectedFile.name.split('.').pop()}`; await supabase?.storage.from('documents').upload(fileName, selectedFile); finalUrl = supabase?.storage.from('documents').getPublicUrl(fileName).data.publicUrl || ''; }
+            if (selectedFile) { 
+                const fileName = `${user.id}/${Date.now()}.${selectedFile.name.split('.').pop()}`; 
+                // Note: Pas de ? ici car on a vérifié supabase au début
+                await supabase.storage.from('documents').upload(fileName, selectedFile); 
+                finalUrl = supabase.storage.from('documents').getPublicUrl(fileName).data.publicUrl || ''; 
+            }
         } else if (resFormType === 'text') { finalUrl = ''; }
         
         const payload = { title: resFormTitle, file_type: resFormType, category: resFormCategory, access_scope: 'global', target_structure_id: null, file_url: finalUrl, description: resFormType === 'text' ? resFormContent : '', uploaded_by: user.id };
         
         if (editingResourceId) {
-            const { error } = await supabase?.from('resources').update(payload).eq('id', editingResourceId);
+            // CORRECTION: Supression du '?' car supabase est garanti
+            const { error } = await supabase.from('resources').update(payload).eq('id', editingResourceId);
             if (error) throw error;
         } else {
-            const { error } = await supabase?.from('resources').insert(payload);
+            const { error } = await supabase.from('resources').insert(payload);
             if (error) throw error;
         }
         await refreshData(); setIsModalOpen(false);
@@ -183,11 +192,26 @@ export const Dashboard = ({ user, onLogout, onOpenLegal, allowedDomains, onAllow
   };
 
   const handleSubmitUser = async () => {
-    if (editingUserId) await supabase?.from('profiles').update({ full_name: userFormName, role: userFormRole, structure_id: userFormStructure }).eq('id', editingUserId); else alert(`Simulé: Invitation à ${userFormEmail}`);
+    // Guard clause
+    if (!supabase) { alert("Simulé: Invitation à " + userFormEmail); setIsModalOpen(false); return; }
+
+    if (editingUserId) await supabase.from('profiles').update({ full_name: userFormName, role: userFormRole, structure_id: userFormStructure }).eq('id', editingUserId); 
+    // Invitation réelle à implémenter si besoin
     await refreshData(); setIsModalOpen(false);
   };
-  const handleCreateStructure = async (name: string, city: string) => { await supabase?.from('structures').insert({ name, city }); await refreshData(); setIsModalOpen(false); }
-  const handleCreateDomain = async () => { const normalized = domainFormValue.trim().toLowerCase(); await supabase?.from('allowed_domains').insert({ domain: normalized, structure_id: domainFormStructure || null, created_by: user.id }); await refreshData(); setIsModalOpen(false); }
+
+  const handleCreateStructure = async (name: string, city: string) => { 
+      if (!supabase) { setIsModalOpen(false); return; }
+      await supabase.from('structures').insert({ name, city }); 
+      await refreshData(); setIsModalOpen(false); 
+  }
+
+  const handleCreateDomain = async () => { 
+      if (!supabase) { setIsModalOpen(false); return; }
+      const normalized = domainFormValue.trim().toLowerCase(); 
+      await supabase.from('allowed_domains').insert({ domain: normalized, structure_id: domainFormStructure || null, created_by: user.id }); 
+      await refreshData(); setIsModalOpen(false); 
+  }
 
   return (
     <div className="min-h-screen bg-slate-50 font-sans text-slate-900 flex flex-col md:flex-row">
@@ -231,8 +255,6 @@ export const Dashboard = ({ user, onLogout, onOpenLegal, allowedDomains, onAllow
                     <>
                         <div><label className="block text-xs font-bold text-slate-500 mb-1">Titre</label><input value={promptFormTitle} onChange={e=>setPromptFormTitle(e.target.value)} className="w-full border p-2 rounded" placeholder="Titre" required/></div>
                         <div><label className="block text-xs font-bold text-slate-500 mb-1">Contenu</label><textarea value={promptFormContent} onChange={e=>setPromptFormContent(e.target.value)} rows={5} className="w-full border p-2 rounded" placeholder="Contenu..." required/></div>
-                        
-                        {/* MENU DÉROULANT CATÉGORIES */}
                         <div>
                             <label className="block text-xs font-bold text-slate-500 mb-1">Catégorie</label>
                             <select value={promptFormTag} onChange={e=>setPromptFormTag(e.target.value)} className="w-full border p-2 rounded bg-white">
