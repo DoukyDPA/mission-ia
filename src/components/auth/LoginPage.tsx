@@ -61,6 +61,7 @@ export const LoginPage = ({ onLogin, onOpenLegal, allowedDomains }: LoginPagePro
     setLoading(true);
     setError('');
     
+    // 1. Vérification du domaine
     const matchingDomain = findAllowedDomain(email);
     if (!matchingDomain) {
       setError("Email non autorisé. Contactez votre administrateur.");
@@ -69,30 +70,39 @@ export const LoginPage = ({ onLogin, onOpenLegal, allowedDomains }: LoginPagePro
     }
 
     if (!supabase) {
-       // Mock Register
-       onLogin({ id: Date.now(), email, name: fullName, role: 'Conseiller', missionLocale: matchingDomain.structure_name || 'National', avatar: 'UK' });
+       // Mode démo
+       onLogin({ id: Date.now(), email, name: fullName, role: 'Conseiller', missionLocale: matchingDomain.structure_name || 'National', avatar: 'DEMO' });
        return;
     }
 
     try {
+      // 2. Inscription avec envoi des métadonnées (C'est ICI que ça se joue)
       const { data, error: signUpError } = await supabase.auth.signUp({ 
         email, 
         password,
-        options: { emailRedirectTo: window.location.origin } 
+        options: { 
+          emailRedirectTo: window.location.origin,
+          // 👇 On passe le nom ici pour que le Trigger SQL le récupère
+          data: {
+            full_name: fullName,
+            structure_id: matchingDomain.structure_id || null
+          }
+        } 
       });
+
       if (signUpError) throw signUpError;
 
-      if (data.user?.id) {
-        await supabase.from('profiles').upsert({
-          id: data.user.id, email, full_name: fullName || email.split('@')[0],
-          role: 'Conseiller', structure_id: matchingDomain.structure_id || null
-        });
-        setInfoMessage("Compte créé ! Vérifiez vos emails.");
-      }
-    } catch (err: any) { setError(err.message); } 
-    finally { setLoading(false); }
+      // 3. Plus besoin de créer le profil manuellement ici !
+      // Le Trigger SQL s'en est chargé automatiquement.
+      
+      setInfoMessage("Compte créé ! Vérifiez vos emails pour valider l'inscription.");
+      
+    } catch (err: any) { 
+      setError(err.message); 
+    } finally { 
+      setLoading(false); 
+    }
   };
-
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col justify-center items-center p-4">
       <div className="bg-white p-8 rounded-2xl shadow-xl w-full max-w-md border border-slate-100">
