@@ -4,7 +4,7 @@ import {
   BookOpen, GitFork, Users, Search, FileText, Video, Download, Plus, 
   ArrowRight, X, LogOut, Building2, Globe, UploadCloud, UserPlus, Trash2, 
   ShieldCheck, Link as LinkIcon, AlignLeft, ExternalLink, Eye, Pencil, Mail, PlayCircle,
-  Menu, Copy
+  Menu, Copy, Calendar, ChevronDown // <--- Ajout de Calendar et ChevronDown
 } from 'lucide-react';
 
 import { supabase } from '@/lib/supabase';
@@ -42,26 +42,27 @@ export const Dashboard = ({ user, onLogout, onOpenLegal, allowedDomains, onAllow
   const [viewingResource, setViewingResource] = useState<Resource | null>(null);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   
+  // --- PAGINATION (Articles) ---
+  const [visibleArticles, setVisibleArticles] = useState(6); // On affiche 6 articles par défaut
+
   // Filtres
   const [isCustomTag, setIsCustomTag] = useState(false);
   const [availableCategories, setAvailableCategories] = useState(['Administratif', 'Relation Jeunes', 'Direction', 'RH', 'Projets', 'Autre']);
   const [selectedCategory, setSelectedCategory] = useState('Tous');
 
-  // Formulaires Prompts
+  // Formulaires
   const [editingPromptId, setEditingPromptId] = useState<string | number | null>(null);
   const [promptFormTitle, setPromptFormTitle] = useState('');
   const [promptFormContent, setPromptFormContent] = useState('');
   const [promptFormTag, setPromptFormTag] = useState('Administratif');
   const [parentPromptId, setParentPromptId] = useState<string | number | null>(null);
 
-  // Formulaires Ressources
   const [editingResourceId, setEditingResourceId] = useState<string | number | null>(null);
   const [resFormType, setResFormType] = useState<'file' | 'text' | 'link' | 'video'>('file');
   const [resFormContent, setResFormContent] = useState('');
-  const [resFormTitle, setResFormTitle] = useState(''); // Ajout pour gérer le titre proprement
-  const [resFormCategory, setResFormCategory] = useState('Formation'); // Ajout pour la catégorie
+  const [resFormTitle, setResFormTitle] = useState('');
+  const [resFormCategory, setResFormCategory] = useState('Formation');
 
-  // Formulaires Admin
   const [editingUserId, setEditingUserId] = useState<string | number | null>(null);
   const [userFormEmail, setUserFormEmail] = useState('');
   const [userFormName, setUserFormName] = useState('');
@@ -98,8 +99,15 @@ export const Dashboard = ({ user, onLogout, onOpenLegal, allowedDomains, onAllow
                 user_id: p.user_id
             })));
         }
+        
+        // CORRECTION ICI : On formate la date pour les ressources
         const { data: rData } = await supabase.from('resources').select('*').order('created_at', { ascending: false });
-        if (rData) setResources(rData.map((r: any) => ({ ...r, type: r.file_type || 'file' })));
+        if (rData) setResources(rData.map((r: any) => ({ 
+            ...r, 
+            type: r.file_type || 'file',
+            date: new Date(r.created_at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' }) // Formatage "17 décembre 2023"
+        })));
+
         const { data: sData } = await supabase.from('structures').select('*');
         if (sData) setStructures(sData);
         const { data: dData } = await supabase.from('allowed_domains').select('*, structures(name)');
@@ -124,11 +132,9 @@ export const Dashboard = ({ user, onLogout, onOpenLegal, allowedDomains, onAllow
       alert("Prompt copié dans le presse-papier !");
   };
 
-  // Prompts
   const prepareCreatePrompt = () => { setModalMode('prompt'); setEditingPromptId(null); setPromptFormTitle(''); setPromptFormContent(''); setPromptFormTag(availableCategories[0]); setParentPromptId(null); setIsCustomTag(false); setIsModalOpen(true); }
   const prepareForkPrompt = (original: Prompt) => { setModalMode('prompt'); setEditingPromptId(null); setPromptFormTitle(`Variante : ${original.title}`); setPromptFormContent(original.content); setPromptFormTag(original.tags[0] || 'Administratif'); setParentPromptId(original.id); setIsModalOpen(true); }
   const prepareEditPrompt = (original: Prompt) => { setModalMode('prompt'); setEditingPromptId(original.id); setPromptFormTitle(original.title); setPromptFormContent(original.content); setPromptFormTag(original.tags[0] || availableCategories[0]); setIsCustomTag(!availableCategories.includes(original.tags[0])); setParentPromptId(null); setIsModalOpen(true); }
-  
   const handleSubmitPrompt = async () => {
     if (!supabase) { setIsModalOpen(false); return; }
     try {
@@ -142,14 +148,12 @@ export const Dashboard = ({ user, onLogout, onOpenLegal, allowedDomains, onAllow
     } catch (err: any) { alert("Erreur : " + err.message); }
   };
 
-  // Ressources (CORRIGÉ)
   const prepareCreateResource = () => {
       setModalMode('resource'); setEditingResourceId(null); 
       setResFormTitle(''); setResFormCategory('Formation');
       setResFormType('file'); setResFormContent(''); setSelectedFile(null);
       setIsModalOpen(true);
   }
-
   const prepareEditResource = (r: Resource) => {
       setModalMode('resource'); setEditingResourceId(r.id);
       setResFormTitle(r.title); setResFormCategory(r.category);
@@ -159,7 +163,6 @@ export const Dashboard = ({ user, onLogout, onOpenLegal, allowedDomains, onAllow
       setSelectedFile(null);
       setIsModalOpen(true);
   }
-
   const handleCreateResource = async () => {
       let finalUrl = '', description = '';
       if (!supabase) { setIsModalOpen(false); return; }
@@ -172,13 +175,11 @@ export const Dashboard = ({ user, onLogout, onOpenLegal, allowedDomains, onAllow
                 finalUrl = supabase.storage.from('documents').getPublicUrl(fileName).data.publicUrl;
             } catch (e: any) { alert("Erreur upload: " + e.message); return; }
           } else if (editingResourceId && resFormContent) {
-              // Si on édite et qu'on n'a pas changé le fichier, on garde l'ancien URL
               finalUrl = resFormContent; 
           }
       } else if (resFormType === 'text') {
           description = resFormContent;
       } else {
-          // Link ou Video
           finalUrl = resFormContent;
       }
       
@@ -199,7 +200,6 @@ export const Dashboard = ({ user, onLogout, onOpenLegal, allowedDomains, onAllow
       await refreshData(); setIsModalOpen(false);
   };
 
-  // Admin Handlers
   const prepareEditUser = (u: User) => { setModalMode('user'); setEditingUserId(u.id); setUserFormName(u.name); setUserFormEmail(u.email); setUserFormRole(u.role); setUserFormStructure(u.structure_id || (structures[0] ? structures[0].id : '')); setIsModalOpen(true); }
   const prepareInviteUser = () => { setModalMode('user'); setEditingUserId(null); setUserFormName(''); setUserFormEmail(''); setUserFormRole('Conseiller'); setUserFormStructure(structures[0] ? structures[0].id : ''); setIsModalOpen(true); }
   const handleSubmitUser = async () => {
@@ -255,7 +255,42 @@ export const Dashboard = ({ user, onLogout, onOpenLegal, allowedDomains, onAllow
 
     return (
         <div className="space-y-12">
-            {articles.length > 0 && (<section><h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2"><AlignLeft className="text-amber-500"/> Articles & Tutoriels</h3><div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">{articles.map(r => (<div key={r.id} className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col h-full hover:shadow-md transition-shadow relative group"><div className="flex justify-between items-start mb-2"><Badge color="green">{r.category}</Badge>{isAdmin && <div className="flex gap-1"><button onClick={() => prepareEditResource(r)} className="text-slate-300 hover:text-[#116862] p-1"><Pencil size={14}/></button><button onClick={() => deleteItem('resources', r.id)} className="text-slate-300 hover:text-red-500 p-1"><Trash2 size={14}/></button></div>}</div><h4 className="font-bold text-slate-800 mb-2">{r.title}</h4><div className="text-sm text-slate-600 line-clamp-3 mb-4 flex-1">{r.description}</div><button onClick={() => setViewingResource(r)} className="text-sm font-semibold text-amber-600 hover:text-amber-700 flex items-center gap-1 mt-auto">Lire l'article <ArrowRight size={14}/></button></div>))}</div></section>)}
+            {articles.length > 0 && (
+                <section>
+                    <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2"><AlignLeft className="text-amber-500"/> Articles & Tutoriels</h3>
+                    {/* Grille des articles avec pagination */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        {articles.slice(0, visibleArticles).map(r => (
+                            <div key={r.id} className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col h-full hover:shadow-md transition-shadow relative group">
+                                <div className="flex justify-between items-start mb-2">
+                                    <Badge color="green">{r.category}</Badge>
+                                    {isAdmin && <div className="flex gap-1"><button onClick={() => prepareEditResource(r)} className="text-slate-300 hover:text-[#116862] p-1"><Pencil size={14}/></button><button onClick={() => deleteItem('resources', r.id)} className="text-slate-300 hover:text-red-500 p-1"><Trash2 size={14}/></button></div>}
+                                </div>
+                                <h4 className="font-bold text-slate-800 mb-2">{r.title}</h4>
+                                <div className="text-sm text-slate-600 line-clamp-3 mb-4 flex-1">{r.description}</div>
+                                <div className="flex items-center justify-between mt-auto pt-4 border-t border-slate-50">
+                                    {/* AJOUT DE LA DATE ICI */}
+                                    <div className="text-xs text-slate-400 flex items-center gap-1">
+                                        <Calendar size={12}/> {r.date || "Date inconnue"}
+                                    </div>
+                                    <button onClick={() => setViewingResource(r)} className="text-sm font-semibold text-amber-600 hover:text-amber-700 flex items-center gap-1">Lire <ArrowRight size={14}/></button>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                    {/* BOUTON VOIR PLUS */}
+                    {articles.length > visibleArticles && (
+                        <div className="flex justify-center mt-6">
+                            <button 
+                                onClick={() => setVisibleArticles(prev => prev + 6)}
+                                className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-full text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors shadow-sm"
+                            >
+                                <ChevronDown size={16}/> Voir plus d'articles
+                            </button>
+                        </div>
+                    )}
+                </section>
+            )}
             {videos.length > 0 && (<section><h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2"><Video className="text-red-500"/> Vidéothèque</h3><div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">{videos.map(r => { const videoId = r.file_url ? getYoutubeId(r.file_url) : null; const thumbnailUrl = videoId ? `https://img.youtube.com/vi/${videoId}/mqdefault.jpg` : null; return (<div key={r.id} className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden hover:shadow-md transition-shadow group relative"><div className="aspect-video bg-slate-100 relative group-hover:opacity-90 transition-opacity">{thumbnailUrl ? <img src={thumbnailUrl} alt={r.title} className="w-full h-full object-cover" /> : <div className="flex items-center justify-center h-full"><Video size={48} className="text-slate-300"/></div>}<a href={r.file_url} target="_blank" rel="noreferrer" className="absolute inset-0 flex items-center justify-center bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity"><PlayCircle size={48} className="text-white drop-shadow-lg"/></a>{isAdmin && <button onClick={() => deleteItem('resources', r.id)} className="absolute top-2 right-2 bg-white/90 p-1.5 rounded-full text-red-500 hover:bg-red-50 opacity-0 group-hover:opacity-100 transition-opacity"><Trash2 size={12}/></button>}</div><div className="p-3"><h4 className="font-bold text-sm text-slate-800 truncate">{r.title}</h4><span className="text-xs text-slate-500">{r.category}</span></div></div>); })}</div></section>)}
             {tools.length > 0 && (<section><h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2"><LinkIcon className="text-[#116862]"/> Outils</h3><div className="grid grid-cols-1 md:grid-cols-3 gap-4">{tools.map(r => <div key={r.id} className="bg-white p-3 rounded border flex items-center gap-3"><Globe size={20} className="text-[#116862]"/><a href={r.file_url} target="_blank" className="flex-1 truncate font-medium text-slate-700">{r.title}</a>{isAdmin && <button onClick={()=>deleteItem('resources',r.id)}><Trash2 size={14} className="text-slate-300 hover:text-red-500"/></button>}</div>)}</div></section>)}
             {files.length > 0 && (<section><h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2"><Download className="text-blue-500"/> Fichiers</h3><div className="grid grid-cols-1 md:grid-cols-4 gap-4">{files.map(r => <div key={r.id} className="bg-white p-4 rounded border flex flex-col"><div className="flex justify-between"><FileText className="text-blue-500"/>{isAdmin && <button onClick={()=>deleteItem('resources',r.id)}><Trash2 size={14} className="text-slate-300 hover:text-red-500"/></button>}</div><h4 className="font-bold text-sm mt-2">{r.title}</h4><a href={r.file_url} target="_blank" className="mt-4 text-xs font-bold text-blue-600 flex items-center gap-1"><Download size={12}/> Télécharger</a></div>)}</div></section>)}
@@ -406,7 +441,6 @@ export const Dashboard = ({ user, onLogout, onOpenLegal, allowedDomains, onAllow
                   
                   {modalMode === 'prompt' && <><input value={promptFormTitle} onChange={e=>setPromptFormTitle(e.target.value)} className="w-full border p-2 rounded" placeholder="Titre"/><textarea value={promptFormContent} onChange={e=>setPromptFormContent(e.target.value)} rows={5} className="w-full border p-2 rounded" placeholder="Contenu..."/></>}
                   
-                  {/* --- CORRECTION DU FORMULAIRE RESSOURCE --- */}
                   {modalMode === 'resource' && (
                      <>
                         <div><label className="block text-xs font-bold text-slate-500 mb-1">Titre</label><input value={resFormTitle} onChange={e=>setResFormTitle(e.target.value)} required className="w-full border p-2 rounded" placeholder="Titre de la ressource"/></div>
