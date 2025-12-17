@@ -171,7 +171,7 @@ export const Dashboard = ({ user, onLogout, onOpenLegal, allowedDomains, onAllow
       if(supabase) { await supabase.from(table).delete().eq('id', id); await refreshData(); }
   };
 
-  // --- RENDUS ---
+  // --- RENDUS ADMIN ---
   const renderStructures = () => (
     <div className="max-w-4xl mx-auto">
         <div className="flex justify-between items-center mb-6"><h2 className="text-xl font-bold text-slate-800">Gestion des Structures</h2><button onClick={() => { setModalMode('structure'); setIsModalOpen(true); }} className="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center hover:bg-indigo-700"><Plus size={16} className="mr-2"/> Ajouter</button></div>
@@ -190,6 +190,8 @@ export const Dashboard = ({ user, onLogout, onOpenLegal, allowedDomains, onAllow
         <div className="bg-white rounded-xl border border-slate-200 overflow-hidden"><table className="w-full text-sm text-left"><thead className="bg-slate-50 text-slate-500 font-medium border-b border-slate-200"><tr><th className="px-6 py-4">Domaine</th><th className="px-6 py-4">Structure</th><th className="px-6 py-4 text-right">Actions</th></tr></thead><tbody className="divide-y divide-slate-100">{allowedDomains.map(d => (<tr key={d.id} className="hover:bg-slate-50"><td className="px-6 py-4 font-medium text-slate-800">{d.domain}</td><td className="px-6 py-4 text-slate-600">{d.structure_name || structures.find(s => s.id == d.structure_id)?.name || 'Non spécifié'}</td><td className="px-6 py-4 text-right"><button onClick={() => deleteItem('allowed_domains', d.id)} className="text-red-500 hover:underline text-xs flex items-center justify-end gap-1"><Trash2 size={12}/> Supprimer</button></td></tr>))}</tbody></table></div>
     </div>
   );
+
+  // --- RENDU RESSOURCES ---
   const renderResources = () => {
     const articles = resources.filter(r => r.type === 'text');
     const videos = resources.filter(r => r.type === 'video');
@@ -212,7 +214,6 @@ export const Dashboard = ({ user, onLogout, onOpenLegal, allowedDomains, onAllow
       {/* 1. HEADER MOBILE AVEC LOGO ET MENU */}
       <div className="md:hidden bg-white border-b p-4 flex justify-between items-center sticky top-0 z-20 shadow-sm">
          <div className="flex items-center gap-2 font-bold text-lg text-indigo-600">
-             {/* Logo Mobile (Sans texte) */}
              <img src="/logo.png" alt="Logo" className="h-10 w-auto object-contain" />
          </div>
          <button onClick={() => setIsMobileMenuOpen(true)} className="text-slate-600 p-1"><Menu /></button>
@@ -221,24 +222,36 @@ export const Dashboard = ({ user, onLogout, onOpenLegal, allowedDomains, onAllow
       {/* 2. OVERLAY MENU MOBILE */}
       {isMobileMenuOpen && (
         <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-sm md:hidden">
-            <div className="bg-white w-3/4 h-full p-4 shadow-xl animate-in slide-in-from-left duration-200">
-                <div className="flex justify-between items-center mb-6">
-                    <span className="font-bold text-lg text-slate-800">Menu</span>
-                    <button onClick={() => setIsMobileMenuOpen(false)}><X className="text-slate-500"/></button>
+            <div className="bg-white w-3/4 h-full p-4 shadow-xl animate-in slide-in-from-left duration-200 flex flex-col justify-between">
+                <div>
+                    <div className="flex justify-between items-center mb-6">
+                        <span className="font-bold text-lg text-slate-800">Menu</span>
+                        <button onClick={() => setIsMobileMenuOpen(false)}><X className="text-slate-500"/></button>
+                    </div>
+                    <nav className="space-y-1">
+                        <SidebarItem icon={GitFork} label="Prompts" active={currentTab === 'prompts'} onClick={() => { setCurrentTab('prompts'); setIsMobileMenuOpen(false); }} />
+                        <SidebarItem icon={BookOpen} label="Ressources" active={currentTab === 'resources'} onClick={() => { setCurrentTab('resources'); setIsMobileMenuOpen(false); }} />
+                        {isAdmin && (
+                            <>
+                            <div className="mt-6 mb-2 px-4 text-xs font-bold text-slate-400 uppercase">Administration</div>
+                            <SidebarItem icon={Building2} label="Structures" active={currentTab === 'structures'} onClick={() => { setCurrentTab('structures'); setIsMobileMenuOpen(false); }} />
+                            <SidebarItem icon={Globe} label="Domaines" active={currentTab === 'domains'} onClick={() => { setCurrentTab('domains'); setIsMobileMenuOpen(false); }} />
+                            <SidebarItem icon={Users} label="Utilisateurs" active={currentTab === 'users'} onClick={() => { setCurrentTab('users'); setIsMobileMenuOpen(false); }} />
+                            </>
+                        )}
+                    </nav>
+
+                    {/* BLOC PROMO MOBILE */}
+                    <div className="px-4 mt-8">
+                        <p className="text-[10px] text-slate-500 text-center mb-2 leading-tight">Téléchargez gratuitement notre "anonymiseur" de CV pour utiliser l'IA en toute discrétion</p>
+                        <a href="https://solutions.silveria.fr/" target="_blank" rel="noopener noreferrer" className="flex justify-center hover:opacity-80 transition-opacity">
+                            {/* ⚠️ Assurez-vous d'avoir 'logo-anonymiseur.png' dans public/ */}
+                            <img src="/logo-anonymiseur.png" alt="Anonymiseur Silveria" className="h-10 w-auto object-contain" />
+                        </a>
+                    </div>
                 </div>
-                <nav className="space-y-1">
-                    <SidebarItem icon={GitFork} label="Prompts" active={currentTab === 'prompts'} onClick={() => { setCurrentTab('prompts'); setIsMobileMenuOpen(false); }} />
-                    <SidebarItem icon={BookOpen} label="Ressources" active={currentTab === 'resources'} onClick={() => { setCurrentTab('resources'); setIsMobileMenuOpen(false); }} />
-                    {isAdmin && (
-                        <>
-                        <div className="mt-6 mb-2 px-4 text-xs font-bold text-slate-400 uppercase">Administration</div>
-                        <SidebarItem icon={Building2} label="Structures" active={currentTab === 'structures'} onClick={() => { setCurrentTab('structures'); setIsMobileMenuOpen(false); }} />
-                        <SidebarItem icon={Globe} label="Domaines" active={currentTab === 'domains'} onClick={() => { setCurrentTab('domains'); setIsMobileMenuOpen(false); }} />
-                        <SidebarItem icon={Users} label="Utilisateurs" active={currentTab === 'users'} onClick={() => { setCurrentTab('users'); setIsMobileMenuOpen(false); }} />
-                        </>
-                    )}
-                </nav>
-                <div className="absolute bottom-4 left-4 right-4">
+
+                <div className="pb-4">
                      <button onClick={onLogout} className="flex items-center gap-2 text-slate-500 hover:text-red-500 w-full p-2 border border-slate-200 rounded justify-center"><LogOut size={16}/> Déconnexion</button>
                 </div>
             </div>
@@ -250,7 +263,7 @@ export const Dashboard = ({ user, onLogout, onOpenLegal, allowedDomains, onAllow
          <div>
             <div className="p-6 border-b border-slate-100">
                <div className="flex items-center gap-2 text-indigo-600 font-bold text-xl">
-                   {/* Logo Desktop (Sans texte) */}
+                   {/* Logo Desktop */}
                    <img src="/logo.png" alt="Logo" className="h-10 w-auto object-contain" />
                </div>
                <div className="mt-4 p-2 bg-indigo-50 rounded text-xs font-bold text-indigo-900">{user.missionLocale}</div>
@@ -260,7 +273,17 @@ export const Dashboard = ({ user, onLogout, onOpenLegal, allowedDomains, onAllow
                <SidebarItem icon={BookOpen} label="Ressources" active={currentTab === 'resources'} onClick={() => setCurrentTab('resources')} />
                {isAdmin && <><div className="mt-6 mb-2 px-4 text-xs font-bold text-slate-400 uppercase">Administration</div><SidebarItem icon={Building2} label="Structures" active={currentTab === 'structures'} onClick={() => setCurrentTab('structures')} /><SidebarItem icon={Globe} label="Domaines" active={currentTab === 'domains'} onClick={() => setCurrentTab('domains')} /><SidebarItem icon={Users} label="Utilisateurs" active={currentTab === 'users'} onClick={() => setCurrentTab('users')} /></>}
             </nav>
+            
+            {/* BLOC PROMO DESKTOP */}
+            <div className="px-4 mt-6">
+                <p className="text-[10px] text-slate-500 text-center mb-2 leading-tight">Téléchargez gratuitement notre "anonymiseur" de CV pour utiliser l'IA en toute discrétion</p>
+                <a href="https://solutions.silveria.fr/" target="_blank" rel="noopener noreferrer" className="flex justify-center hover:scale-105 transition-transform">
+                    {/* ⚠️ Assurez-vous d'avoir 'logo-anonymiseur.png' dans public/ */}
+                    <img src="/logo-anonymiseur.png" alt="Anonymiseur Silveria" className="h-10 w-auto object-contain" />
+                </a>
+            </div>
          </div>
+         
          <div className="p-4 border-t border-slate-100 bg-slate-50">
             <div className="mb-2 px-2"><p className="text-sm font-bold text-slate-700 truncate">{user.name}</p><p className="text-xs text-slate-500 truncate flex items-center gap-1">{user.role} {isAdmin && <ShieldCheck size={12} className="text-indigo-600"/>}</p></div>
             <button onClick={onLogout} className="flex items-center gap-2 text-slate-500 hover:text-red-500 mb-3 ml-2 text-sm"><LogOut size={16}/> Déconnexion</button>
