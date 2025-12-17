@@ -13,7 +13,7 @@ import {
   BookOpen, Sparkles, GitFork, Users, Search, FileText, Video, Download, 
   ThumbsUp, MessageSquare, Copy, Plus, ArrowRight, Menu, X, Send, LogOut, 
   Lock, Building2, Globe, UploadCloud, UserPlus, Trash2, Filter, Info, ShieldCheck, 
-  Link as LinkIcon, AlignLeft, ExternalLink, Eye, Pencil, Mail
+  Link as LinkIcon, AlignLeft, ExternalLink, Eye, Pencil, Mail, PlayCircle, File
 } from 'lucide-react';
 
 // --- CONFIGURATION SUPABASE ---
@@ -21,13 +21,8 @@ const supabaseUrl = (typeof process !== 'undefined' && process.env) ? process.en
 const supabaseAnonKey = (typeof process !== 'undefined' && process.env) ? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY : '';
 
 // ==================================================================================
-// 3. INITIALISATION DU CLIENT (CHOISISSEZ UNE SEULE OPTION)
+// 3. INITIALISATION DU CLIENT
 // ==================================================================================
-
-// OPTION A : MODE APERÇU (Actif par défaut pour éviter les erreurs ici)
-/* const supabase: any = null; */
-
-// OPTION B : MODE PRODUCTION (Vraie connexion - À DÉCOMMENTER EN PROD)
 
 const supabase = (supabaseUrl && supabaseAnonKey) 
   // @ts-ignore
@@ -67,6 +62,14 @@ const MOCK_ALLOWED_DOMAINS: AllowedDomain[] = [
   { id: 'demo-1', domain: 'missionlocale.fr', structure_id: 1, structure_name: 'Mission Locale de Lyon' },
   { id: 'demo-2', domain: 'cbe-sud94.org', structure_id: 2, structure_name: 'Mission Locale de Paris' }
 ];
+
+// --- UTILS ---
+const getYoutubeId = (url: string) => {
+    if (!url) return null;
+    const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
+    const match = url.match(regExp);
+    return (match && match[2].length === 11) ? match[2] : null;
+};
 
 // --- COMPOSANTS UI ---
 
@@ -135,10 +138,8 @@ const LoginPage = ({ onLogin, onOpenLegal, allowedDomains }: LoginPageProps) => 
     setError('');
     setInfoMessage('');
 
-    // Fallback Mock Login si pas de Supabase
     if (!supabase) {
       console.warn("Supabase non connecté (Mode Aperçu).");
-      // Pour l'aperçu, on laisse passer n'importe quel email
       if (email.includes('@')) {
          onLogin({ id: 999, email, name: 'Utilisateur Démo', role: 'Admin', missionLocale: 'National', avatar: 'AD' });
       } else {
@@ -357,7 +358,8 @@ const Dashboard = ({ user, onLogout, onOpenLegal, allowedDomains, onAllowedDomai
   const [parentPromptId, setParentPromptId] = useState<string | number | null>(null);
 
   // Etats ressources
-  const [resFormType, setResFormType] = useState<'file' | 'text' | 'link'>('file');
+  const [editingResourceId, setEditingResourceId] = useState<string | number | null>(null);
+  const [resFormType, setResFormType] = useState<'file' | 'text' | 'link' | 'video'>('file');
   const [resFormContent, setResFormContent] = useState('');
   const [viewingResource, setViewingResource] = useState<Resource | null>(null);
 
@@ -510,6 +512,15 @@ const Dashboard = ({ user, onLogout, onOpenLegal, allowedDomains, onAllowedDomai
       setIsModalOpen(true);
   }
 
+  const prepareEditResource = (r: Resource) => {
+      setModalMode('resource');
+      setEditingResourceId(r.id);
+      // @ts-ignore
+      setResFormType(r.type);
+      setResFormContent(r.type === 'text' ? (r.description || '') : (r.file_url || ''));
+      setIsModalOpen(true);
+  }
+
   const prepareEditUser = (u: User) => {
       setModalMode('user');
       setEditingUserId(u.id);
@@ -589,7 +600,13 @@ const Dashboard = ({ user, onLogout, onOpenLegal, allowedDomains, onAllowedDomai
           // MODE DÉMO (Locale)
           if (resFormType === 'text') description = resFormContent;
           if (resFormType === 'link') finalUrl = resFormContent;
-          setResources([{ id: Date.now(), title, type, category, access: scope, date: "Maintenant", file_url: finalUrl, description }, ...resources]);
+          if (resFormType === 'video') finalUrl = resFormContent;
+          
+          if (editingResourceId) {
+              setResources(resources.map(r => r.id === editingResourceId ? {...r, title, type, category, access: scope, file_url: finalUrl, description} : r));
+          } else {
+              setResources([{ id: Date.now(), title, type, category, access: scope, date: "Maintenant", file_url: finalUrl, description }, ...resources]);
+          }
           setIsModalOpen(false); 
           return; 
       }
@@ -607,23 +624,30 @@ const Dashboard = ({ user, onLogout, onOpenLegal, allowedDomains, onAllowedDomai
               alert("Erreur upload : " + uploadError.message);
               return;
           }
-      } else if (resFormType === 'link') {
+      } else if (resFormType === 'link' || resFormType === 'video') {
           finalUrl = resFormContent; 
       } else if (resFormType === 'text') {
           description = resFormContent;
       }
       
-      const { error } = await supabase.from('resources').insert({
-          title, file_type: type, category, access_scope: scope, 
-          target_structure_id: scope === 'local' ? targetStructId : null,
-          file_url: finalUrl, description: description, uploaded_by: user.id
-      });
-      
-      if (error) alert("Erreur base de données : " + error.message);
-      else {
-          await refreshData();
-          setIsModalOpen(false);
+      if (editingResourceId) {
+          const { error } = await supabase.from('resources').update({
+              title, file_type: type, category, access_scope: scope, 
+              target_structure_id: scope === 'local' ? targetStructId : null,
+              file_url: finalUrl, description: description
+          }).eq('id', editingResourceId);
+          if (error) alert("Erreur base de données : " + error.message);
+      } else {
+          const { error } = await supabase.from('resources').insert({
+              title, file_type: type, category, access_scope: scope, 
+              target_structure_id: scope === 'local' ? targetStructId : null,
+              file_url: finalUrl, description: description, uploaded_by: user.id
+          });
+          if (error) alert("Erreur base de données : " + error.message);
       }
+      
+      await refreshData();
+      setIsModalOpen(false);
   };
 
   const handleDeleteResource = async (id: string | number) => {
@@ -863,6 +887,132 @@ const Dashboard = ({ user, onLogout, onOpenLegal, allowedDomains, onAllowedDomai
     </div>
   );
 
+  const renderResources = () => {
+    // SÉPARATION DES RESSOURCES PAR TYPE
+    const articles = resources.filter(r => r.type === 'text');
+    const videos = resources.filter(r => r.type === 'video');
+    const tools = resources.filter(r => r.type === 'link');
+    const files = resources.filter(r => r.type === 'file' || r.type === 'pdf' || !r.type);
+
+    return (
+        <div className="space-y-12">
+            {/* 1. ARTICLES & TUTOS */}
+            {articles.length > 0 && (
+                <section>
+                    <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2"><AlignLeft className="text-amber-500"/> Articles & Tutoriels</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        {articles.map(r => (
+                            <div key={r.id} className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col h-full hover:shadow-md transition-shadow relative group">
+                                <div className="flex justify-between items-start mb-2">
+                                    <Badge color="green">{r.category}</Badge>
+                                    <div className="flex gap-1">
+                                        {isAdmin && (
+                                            <>
+                                                <button onClick={() => prepareEditResource(r)} className="text-slate-300 hover:text-indigo-600 p-1 rounded-full hover:bg-indigo-50"><Pencil size={14}/></button>
+                                                <button onClick={() => handleDeleteResource(r.id)} className="text-slate-300 hover:text-red-500 p-1 rounded-full hover:bg-red-50"><Trash2 size={14}/></button>
+                                            </>
+                                        )}
+                                    </div>
+                                </div>
+                                <h4 className="font-bold text-slate-800 mb-2">{r.title}</h4>
+                                <div className="text-sm text-slate-600 line-clamp-3 mb-4 flex-1">
+                                    {r.description}
+                                </div>
+                                <button onClick={() => setViewingResource(r)} className="text-sm font-semibold text-amber-600 hover:text-amber-700 flex items-center gap-1 mt-auto">
+                                    Lire l'article <ArrowRight size={14}/>
+                                </button>
+                            </div>
+                        ))}
+                    </div>
+                </section>
+            )}
+
+            {/* 2. VIDÉOTHÈQUE */}
+            {videos.length > 0 && (
+                <section>
+                    <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2"><Video className="text-red-500"/> Vidéothèque</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                        {videos.map(r => {
+                            const videoId = r.file_url ? getYoutubeId(r.file_url) : null;
+                            const thumbnailUrl = videoId ? `https://img.youtube.com/vi/${videoId}/mqdefault.jpg` : null;
+
+                            return (
+                                <div key={r.id} className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden hover:shadow-md transition-shadow group">
+                                    <div className="aspect-video bg-slate-100 relative group-hover:opacity-90 transition-opacity">
+                                        {thumbnailUrl ? (
+                                            <img src={thumbnailUrl} alt={r.title} className="w-full h-full object-cover" />
+                                        ) : (
+                                            <div className="w-full h-full flex items-center justify-center text-slate-300"><Video size={48}/></div>
+                                        )}
+                                        <a href={r.file_url} target="_blank" rel="noopener noreferrer" className="absolute inset-0 flex items-center justify-center bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity">
+                                            <PlayCircle size={48} className="text-white drop-shadow-lg"/>
+                                        </a>
+                                        {isAdmin && <button onClick={() => handleDeleteResource(r.id)} className="absolute top-2 right-2 bg-white/90 p-1.5 rounded-full text-red-500 hover:bg-red-50 opacity-0 group-hover:opacity-100 transition-opacity"><Trash2 size={12}/></button>}
+                                    </div>
+                                    <div className="p-3">
+                                        <h4 className="font-bold text-sm text-slate-800 truncate" title={r.title}>{r.title}</h4>
+                                        <span className="text-xs text-slate-500">{r.category}</span>
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                </section>
+            )}
+
+            {/* 3. OUTILS & LIENS */}
+            {tools.length > 0 && (
+                <section>
+                    <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2"><LinkIcon className="text-indigo-500"/> Outils & Liens utiles</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {tools.map(r => (
+                            <div key={r.id} className="bg-white p-3 rounded-lg border border-slate-200 hover:border-indigo-300 hover:shadow-sm transition-all flex items-center gap-3 group">
+                                <div className="bg-indigo-50 p-2 rounded text-indigo-600 group-hover:bg-indigo-100 transition-colors">
+                                    <Globe size={20}/>
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                    <a href={r.file_url} target="_blank" rel="noopener noreferrer" className="font-medium text-slate-700 hover:text-indigo-600 truncate block focus:outline-none inset-0">
+                                        {r.title}
+                                    </a>
+                                    <p className="text-xs text-slate-400 truncate">{r.category}</p>
+                                </div>
+                                <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <a href={r.file_url} target="_blank" rel="noopener noreferrer" className="text-slate-400 hover:text-indigo-600"><ExternalLink size={14}/></a>
+                                    {isAdmin && <button onClick={() => handleDeleteResource(r.id)} className="text-slate-400 hover:text-red-500"><Trash2 size={14}/></button>}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </section>
+            )}
+
+            {/* 4. TÉLÉCHARGEMENTS (FICHIERS) */}
+            {files.length > 0 && (
+                <section>
+                    <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2"><Download className="text-blue-500"/> Fichiers à télécharger</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                        {files.map(r => (
+                            <div key={r.id} className="bg-white p-4 rounded-xl border border-slate-200 flex flex-col justify-between hover:shadow-md transition-all">
+                                <div>
+                                    <div className="flex items-start justify-between mb-2">
+                                        <FileText className="text-blue-500" size={24}/>
+                                        {isAdmin && <button onClick={() => handleDeleteResource(r.id)} className="text-slate-300 hover:text-red-500"><Trash2 size={14}/></button>}
+                                    </div>
+                                    <h4 className="font-bold text-sm text-slate-800 mb-1">{r.title}</h4>
+                                    <span className="text-xs text-slate-500 bg-slate-100 px-2 py-0.5 rounded">{r.category}</span>
+                                </div>
+                                <a href={r.file_url} target="_blank" rel="noopener noreferrer" className="mt-4 text-xs font-bold text-blue-600 hover:underline flex items-center gap-1">
+                                    <Download size={12}/> Télécharger
+                                </a>
+                            </div>
+                        ))}
+                    </div>
+                </section>
+            )}
+        </div>
+    );
+  };
+
   // --- RENDU UI ---
 
   return (
@@ -916,6 +1066,7 @@ const Dashboard = ({ user, onLogout, onOpenLegal, allowedDomains, onAllowedDomai
                        if (currentTab === 'prompts') prepareCreatePrompt();
                        else {
                            setModalMode(currentTab === 'structures' ? 'structure' : 'resource');
+                           setEditingResourceId(null); // Mode création
                            setSelectedFile(null);
                            setResFormType('file');
                            setResFormContent('');
@@ -963,30 +1114,7 @@ const Dashboard = ({ user, onLogout, onOpenLegal, allowedDomains, onAllowedDomai
             </div>
          )}
 
-         {currentTab === 'resources' && (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-               {resources.map(r => (
-                  <div key={r.id} className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition-all relative group flex flex-col justify-between">
-                     {r.access !== 'global' && <span className="absolute top-2 right-2 bg-indigo-100 text-indigo-700 text-[10px] px-2 py-1 rounded font-bold">Local</span>}
-                     <div className="flex gap-4 mb-4">
-                        <div className={`p-3 rounded-lg ${r.type === 'link' ? 'bg-emerald-50 text-emerald-600' : r.type === 'text' ? 'bg-amber-50 text-amber-600' : 'bg-red-50 text-red-600'}`}>
-                            {r.type === 'link' ? <LinkIcon size={24} /> : r.type === 'text' ? <AlignLeft size={24} /> : <FileText size={24} />}
-                        </div>
-                        <div className="flex-1 overflow-hidden">
-                           <h4 className="font-bold text-sm text-slate-800 truncate" title={r.title}>{r.title}</h4>
-                           <span className="text-xs text-slate-500 block mt-1">{r.category}</span>
-                        </div>
-                     </div>
-                     <div className="flex items-center justify-between border-t border-slate-50 pt-3">
-                        {r.type === 'link' && r.file_url && <a href={r.file_url} target="_blank" rel="noopener noreferrer" className="text-xs font-medium text-emerald-600 hover:underline flex items-center gap-1"><ExternalLink size={12} /> Visiter</a>}
-                        {r.type === 'text' && <button onClick={() => setViewingResource(r)} className="text-xs font-medium text-amber-600 hover:underline flex items-center gap-1"><Eye size={12} /> Lire</button>}
-                        {(r.type === 'file' || r.type === 'pdf' || !r.type) && r.file_url && <a href={r.file_url} target="_blank" rel="noopener noreferrer" className="text-xs font-medium text-blue-600 hover:underline flex items-center gap-1"><Download size={12} /> Télécharger</a>}
-                        {isAdmin && <button onClick={() => handleDeleteResource(r.id)} className="text-xs text-red-400 hover:text-red-600 flex items-center gap-1"><Trash2 size={12} /></button>}
-                     </div>
-                  </div>
-               ))}
-            </div>
-         )}
+         {currentTab === 'resources' && renderResources()}
 
          {currentTab === 'structures' && renderStructures()}
          {currentTab === 'users' && renderUsers()}
@@ -1006,7 +1134,9 @@ const Dashboard = ({ user, onLogout, onOpenLegal, allowedDomains, onAllowedDomai
                   <h3 className="text-xl font-bold">
                       {modalMode === 'prompt' ? (editingPromptId ? "Modifier le prompt" : parentPromptId ? "Améliorer ce prompt" : "Nouveau Prompt") 
                       : modalMode === 'user' ? (editingUserId ? "Modifier l'utilisateur" : "Inviter un salarié")
-                      : modalMode === 'domain' ? "Ajouter un domaine" : "Nouvel Élément"}
+                      : modalMode === 'domain' ? "Ajouter un domaine"
+                      : modalMode === 'resource' ? (editingResourceId ? "Modifier la ressource" : "Nouvelle ressource")
+                      : "Nouvel Élément"}
                   </h3>
                   <button onClick={() => setIsModalOpen(false)}><X /></button>
                </div>
@@ -1115,13 +1245,14 @@ const Dashboard = ({ user, onLogout, onOpenLegal, allowedDomains, onAllowedDomai
 
                   {modalMode === 'resource' && (
                      <>
-                        <div><label className="block text-xs font-bold text-slate-500 mb-1">Titre</label><input name="title" required placeholder="Titre de la ressource" className="w-full border p-2 rounded" /></div>
+                        <div><label className="block text-xs font-bold text-slate-500 mb-1">Titre</label><input name="title" defaultValue={editingResourceId ? resources.find(r => r.id === editingResourceId)?.title : ''} required placeholder="Titre de la ressource" className="w-full border p-2 rounded" /></div>
                         <div>
                             <label className="block text-xs font-bold text-slate-500 mb-2">Type de contenu</label>
                             <div className="flex bg-slate-100 p-1 rounded-lg">
                                 <button type="button" onClick={() => setResFormType('file')} className={`flex-1 py-1.5 text-xs font-medium rounded-md transition-all ${resFormType === 'file' ? 'bg-white shadow text-indigo-600' : 'text-slate-500 hover:text-slate-700'}`}>Fichier</button>
-                                <button type="button" onClick={() => setResFormType('text')} className={`flex-1 py-1.5 text-xs font-medium rounded-md transition-all ${resFormType === 'text' ? 'bg-white shadow text-indigo-600' : 'text-slate-500 hover:text-slate-700'}`}>Texte</button>
+                                <button type="button" onClick={() => setResFormType('text')} className={`flex-1 py-1.5 text-xs font-medium rounded-md transition-all ${resFormType === 'text' ? 'bg-white shadow text-indigo-600' : 'text-slate-500 hover:text-slate-700'}`}>Article</button>
                                 <button type="button" onClick={() => setResFormType('link')} className={`flex-1 py-1.5 text-xs font-medium rounded-md transition-all ${resFormType === 'link' ? 'bg-white shadow text-indigo-600' : 'text-slate-500 hover:text-slate-700'}`}>Lien</button>
+                                <button type="button" onClick={() => setResFormType('video')} className={`flex-1 py-1.5 text-xs font-medium rounded-md transition-all ${resFormType === 'video' ? 'bg-white shadow text-indigo-600' : 'text-slate-500 hover:text-slate-700'}`}>Vidéo</button>
                             </div>
                         </div>
                         {resFormType === 'file' && (
@@ -1129,16 +1260,16 @@ const Dashboard = ({ user, onLogout, onOpenLegal, allowedDomains, onAllowedDomai
                                 <input type="file" className="absolute inset-0 opacity-0 cursor-pointer" onChange={(e) => {if(e.target.files && e.target.files[0]) setSelectedFile(e.target.files[0]);}} />
                                 <div className="flex flex-col items-center pointer-events-none">
                                     <UploadCloud className="text-slate-400 mb-2" size={32} />
-                                    <span className="text-sm font-medium text-slate-600">{selectedFile ? selectedFile.name : "Cliquez pour sélectionner un fichier"}</span>
-                                    <span className="text-xs text-slate-400 mt-1">PDF, Vidéo ou Slides</span>
+                                    <span className="text-sm font-medium text-slate-600">{selectedFile ? selectedFile.name : (editingResourceId && resFormContent ? "Fichier actuel conservé (cliquer pour changer)" : "Cliquez pour sélectionner un fichier")}</span>
+                                    <span className="text-xs text-slate-400 mt-1">PDF, Word ou Slides</span>
                                 </div>
                             </div>
                         )}
-                        {resFormType === 'text' && <div><textarea value={resFormContent} onChange={(e) => setResFormContent(e.target.value)} placeholder="Écrivez votre contenu ici..." rows={6} className="w-full border p-2 rounded font-mono text-sm" /></div>}
-                        {resFormType === 'link' && <div><input type="url" value={resFormContent} onChange={(e) => setResFormContent(e.target.value)} placeholder="https://exemple.com" className="w-full border p-2 rounded" /></div>}
+                        {resFormType === 'text' && <div><textarea value={resFormContent} onChange={(e) => setResFormContent(e.target.value)} placeholder="Écrivez votre article ici..." rows={6} className="w-full border p-2 rounded font-mono text-sm" /></div>}
+                        {(resFormType === 'link' || resFormType === 'video') && <div><input type="url" value={resFormContent} onChange={(e) => setResFormContent(e.target.value)} placeholder={resFormType === 'video' ? "https://youtube.com/watch?v=..." : "https://exemple.com"} className="w-full border p-2 rounded" /></div>}
                         <div>
                             <label className="block text-xs font-bold text-slate-500 mb-1">Catégorie</label>
-                            <select name="category" className="w-full border p-2 rounded bg-white">
+                            <select name="category" defaultValue={editingResourceId ? resources.find(r => r.id === editingResourceId)?.category : 'Formation'} className="w-full border p-2 rounded bg-white">
                                 <option>Formation</option><option>Veille</option><option>Juridique</option><option>Outil</option><option>Interne</option>
                             </select>
                         </div>
