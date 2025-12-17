@@ -37,7 +37,7 @@ export const Dashboard = ({ user, onLogout, onOpenLegal, allowedDomains, onAllow
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   
   // Catégories (State)
-  const [availableCategories, setAvailableCategories] = useState(['Administratif', 'Relation Jeunes', 'Direction', 'RH', 'Projets', 'Autre']);
+  const [availableCategories, setAvailableCategories] = useState(['Administratif', 'Relation Jeunes', 'Direction', 'RH', 'Projets', 'Emploi', 'Autre']);
   const [selectedCategory, setSelectedCategory] = useState('Tous');
 
   // Formulaires : Prompts
