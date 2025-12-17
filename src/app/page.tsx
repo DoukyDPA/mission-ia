@@ -1050,6 +1050,15 @@ const Dashboard = ({ user, onLogout, onOpenLegal, allowedDomains, onAllowedDomai
                <span>•</span>
                <button onClick={() => onOpenLegal('privacy')} className="hover:text-indigo-600">Confidentialité</button>
             </div>
+
+            {/* --- CRÉDITS SILVERIA --- */}
+            <div className="mt-4 pt-2 border-t border-slate-200 text-center">
+               <div className="flex items-center justify-center gap-2 mb-1">
+                   {/* ⚠️ Assurez-vous d'avoir 'logo-silveria.png' dans votre dossier /public */}
+                   <img src="/logo-silveria.png" alt="Logo Silveria" className="h-6 w-auto object-contain" />
+               </div>
+               <p className="text-[9px] text-slate-400">Conçu et mis à jour par Silveria</p>
+            </div>
          </div>
       </aside>
 
