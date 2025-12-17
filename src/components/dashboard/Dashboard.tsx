@@ -245,8 +245,8 @@ export const Dashboard = ({ user, onLogout, onOpenLegal, allowedDomains, onAllow
                     <div className="px-4 mt-8">
                         <p className="text-[10px] text-slate-500 text-center mb-2 leading-tight">Téléchargez gratuitement notre "anonymiseur" de CV pour utiliser l'IA en toute discrétion</p>
                         <a href="https://solutions.silveria.fr/" target="_blank" rel="noopener noreferrer" className="flex justify-center hover:opacity-80 transition-opacity">
-                            {/* ⚠️ Assurez-vous d'avoir 'logo-anonymiseur.png' dans public/ */}
-                            <img src="/logo-anonymiseur.png" alt="Anonymiseur Silveria" className="h-10 w-auto object-contain" />
+                            {/* LOGO CVforIA AGRANDI ICI */}
+                            <img src="/logo-anonymiseur.png" alt="Anonymiseur Silveria" className="h-auto w-48 object-contain" />
                         </a>
                     </div>
                 </div>
@@ -278,8 +278,8 @@ export const Dashboard = ({ user, onLogout, onOpenLegal, allowedDomains, onAllow
             <div className="px-4 mt-6">
                 <p className="text-[10px] text-slate-500 text-center mb-2 leading-tight">Téléchargez gratuitement notre "anonymiseur" de CV pour utiliser l'IA en toute discrétion</p>
                 <a href="https://solutions.silveria.fr/" target="_blank" rel="noopener noreferrer" className="flex justify-center hover:scale-105 transition-transform">
-                    {/* ⚠️ Assurez-vous d'avoir 'logo-anonymiseur.png' dans public/ */}
-                    <img src="/logo-anonymiseur.png" alt="Anonymiseur Silveria" className="h-10 w-auto object-contain" />
+                    {/* LOGO CVforIA AGRANDI ICI AUSSI */}
+                    <img src="/logo-anonymiseur.png" alt="Anonymiseur Silveria" className="h-auto w-40 object-contain" />
                 </a>
             </div>
          </div>
