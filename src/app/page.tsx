@@ -342,6 +342,10 @@ const Dashboard = ({ user, onLogout, onOpenLegal, allowedDomains, onAllowedDomai
   const [modalMode, setModalMode] = useState('');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   
+  // -- NOUVEAU : GESTION DYNAMIQUE DES CATÉGORIES --
+  const [isCustomTag, setIsCustomTag] = useState(false);
+  const [availableCategories, setAvailableCategories] = useState(['Administratif', 'Relation Jeunes', 'Direction', 'RH', 'Projets', 'Autre']);
+
   // Filtres
   const [selectedCategory, setSelectedCategory] = useState('Tous');
   
@@ -382,9 +386,17 @@ const Dashboard = ({ user, onLogout, onOpenLegal, allowedDomains, onAllowedDomai
             // Création d'une map pour retrouver facilement les noms des auteurs par ID de prompt
             // Ceci permet d'afficher "Variante de Pierre" même si on a que l'ID du parent
             const promptAuthors = new Map();
+            const usedTags = new Set(['Administratif', 'Relation Jeunes', 'Direction', 'RH', 'Projets', 'Autre']);
+
             pData.forEach((p: any) => {
                 promptAuthors.set(p.id, p.profiles?.full_name || 'Inconnu');
+                // Récupération des tags pour enrichir la liste
+                if (p.tags && Array.isArray(p.tags)) {
+                    p.tags.forEach((t: string) => { if(t) usedTags.add(t); });
+                }
             });
+
+            setAvailableCategories(Array.from(usedTags).sort());
 
             setPrompts(pData.map((p: any) => ({
                 id: p.id, title: p.title, content: p.content,
@@ -460,7 +472,9 @@ const Dashboard = ({ user, onLogout, onOpenLegal, allowedDomains, onAllowedDomai
       setModalMode('prompt');
       setEditingPromptId(null);
       setPromptFormTitle(''); setPromptFormContent('');
-      setPromptFormTag('Administratif'); setParentPromptId(null);
+      setPromptFormTag(availableCategories[0]); 
+      setParentPromptId(null);
+      setIsCustomTag(false);
       setIsModalOpen(true);
   }
 
@@ -469,7 +483,10 @@ const Dashboard = ({ user, onLogout, onOpenLegal, allowedDomains, onAllowedDomai
       setEditingPromptId(null);
       setPromptFormTitle(`Variante : ${original.title}`);
       setPromptFormContent(original.content);
-      setPromptFormTag(original.tags[0] || 'Administratif');
+      // Gérer si le tag original n'est pas dans la liste par défaut (pas encore refresh)
+      const originalTag = original.tags[0] || 'Administratif';
+      setPromptFormTag(originalTag);
+      setIsCustomTag(!availableCategories.includes(originalTag));
       setParentPromptId(original.id);
       setIsModalOpen(true);
   }
@@ -479,7 +496,16 @@ const Dashboard = ({ user, onLogout, onOpenLegal, allowedDomains, onAllowedDomai
       setEditingPromptId(original.id); // On passe en mode édition
       setPromptFormTitle(original.title);
       setPromptFormContent(original.content);
-      setPromptFormTag(original.tags[0] || 'Administratif');
+      
+      const currentTag = original.tags[0] || availableCategories[0];
+      if (availableCategories.includes(currentTag)) {
+          setPromptFormTag(currentTag);
+          setIsCustomTag(false);
+      } else {
+          setPromptFormTag(currentTag);
+          setIsCustomTag(true);
+      }
+      
       setParentPromptId(null);
       setIsModalOpen(true);
   }
@@ -907,7 +933,8 @@ const Dashboard = ({ user, onLogout, onOpenLegal, allowedDomains, onAllowedDomai
          {currentTab === 'prompts' && (
             <div className="space-y-6 max-w-4xl">
                <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar">
-                 {['Tous', 'Administratif', 'Relation Jeunes', 'Direction', 'RH', 'Projets', 'Autre'].map(cat => (
+                 <button onClick={() => setSelectedCategory('Tous')} className={`px-4 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${selectedCategory === 'Tous' ? 'bg-indigo-600 text-white' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'}`}>Tous</button>
+                 {availableCategories.map(cat => (
                      <button key={cat} onClick={() => setSelectedCategory(cat)} className={`px-4 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${selectedCategory === cat ? 'bg-indigo-600 text-white' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'}`}>{cat}</button>
                  ))}
                </div>
@@ -1004,7 +1031,49 @@ const Dashboard = ({ user, onLogout, onOpenLegal, allowedDomains, onAllowedDomai
                             </div>
                         )}
                         <div><label className="block text-xs font-bold text-slate-500 mb-1">Titre</label><input value={promptFormTitle} onChange={(e) => setPromptFormTitle(e.target.value)} required placeholder="Titre du prompt" className="w-full border p-2 rounded" /></div>
-                        <div><label className="block text-xs font-bold text-slate-500 mb-1">Catégorie</label><select value={promptFormTag} onChange={(e) => setPromptFormTag(e.target.value)} className="w-full border p-2 rounded bg-white"><option value="Administratif">Administratif</option><option value="Relation Jeunes">Relation Jeunes</option><option value="Direction">Direction</option><option value="RH">RH</option><option value="Projets">Appels à Projets</option><option value="Autre">Autre</option></select></div>
+                        
+                        {/* --- SÉLECTEUR DE CATÉGORIE DYNAMIQUE --- */}
+                        <div>
+                            <label className="block text-xs font-bold text-slate-500 mb-1">Catégorie</label>
+                            {isCustomTag ? (
+                                <div className="flex gap-2 items-center animate-in fade-in slide-in-from-left-2 duration-200">
+                                    <input 
+                                        value={promptFormTag} 
+                                        onChange={(e) => setPromptFormTag(e.target.value)} 
+                                        required 
+                                        placeholder="Nom de la nouvelle catégorie..." 
+                                        className="w-full border p-2 rounded ring-2 ring-indigo-100 focus:ring-indigo-500 outline-none" 
+                                        autoFocus
+                                    />
+                                    <button 
+                                        type="button"
+                                        onClick={() => { setIsCustomTag(false); setPromptFormTag(availableCategories[0]); }}
+                                        className="text-slate-400 hover:text-red-500 bg-slate-50 p-2.5 rounded border border-slate-200 hover:bg-red-50 transition-colors"
+                                        title="Annuler et revenir à la liste"
+                                    >
+                                        <X size={18} />
+                                    </button>
+                                </div>
+                            ) : (
+                                <select 
+                                    value={promptFormTag} 
+                                    onChange={(e) => {
+                                        if (e.target.value === '___NEW___') {
+                                            setIsCustomTag(true);
+                                            setPromptFormTag('');
+                                        } else {
+                                            setPromptFormTag(e.target.value);
+                                        }
+                                    }} 
+                                    className="w-full border p-2 rounded bg-white focus:ring-2 focus:ring-indigo-500 outline-none"
+                                >
+                                    {availableCategories.map(c => <option key={c} value={c}>{c}</option>)}
+                                    <option disabled>──────────</option>
+                                    <option value="___NEW___" className="font-bold text-indigo-600 bg-indigo-50">+ Ajouter une catégorie...</option>
+                                </select>
+                            )}
+                        </div>
+
                         <div><label className="block text-xs font-bold text-slate-500 mb-1">Contenu</label><textarea value={promptFormContent} onChange={(e) => setPromptFormContent(e.target.value)} required placeholder="Votre prompt..." rows={8} className="w-full border p-2 rounded font-mono text-sm" /></div>
                      </>
                   )}
