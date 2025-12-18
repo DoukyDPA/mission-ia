@@ -1,6 +1,6 @@
 // src/components/dashboard/Dashboard.tsx
 import React, { useState, useEffect, useCallback } from 'react';
-import dynamic from 'next/dynamic'; // <--- 1. Import pour charger l'éditeur proprement
+import dynamic from 'next/dynamic';
 import { Plus, X, UploadCloud } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { User, AllowedDomain, Prompt, Resource, Structure } from '@/types';
@@ -10,19 +10,18 @@ import { PromptList } from './PromptList';
 import { ResourceList } from './ResourceList';
 import { AdminPanel } from './AdminPanel';
 
-// <--- 2. Import du style CSS de l'éditeur
-import 'react-quill/dist/quill.snow.css'; 
+// --- CORRECTION ICI : Import de la version compatible React 19 ---
+import 'react-quill-new/dist/quill.snow.css'; 
 
-// <--- 3. Configuration de l'éditeur (Chargement dynamique)
-const ReactQuill = dynamic(() => import('react-quill'), { ssr: false });
+// --- CORRECTION ICI : Chargement de 'react-quill-new' ---
+const ReactQuill = dynamic(() => import('react-quill-new'), { ssr: false });
 
-// Configuration de la barre d'outils (Gras, Italique, Images, Titres...)
 const QUILL_MODULES = {
   toolbar: [
     [{ 'header': [1, 2, false] }],
     ['bold', 'italic', 'underline', 'strike', 'blockquote'],
     [{'list': 'ordered'}, {'list': 'bullet'}],
-    ['link', 'image'], // <--- Ajout du support Image ici
+    ['link', 'image'],
     ['clean']
   ],
 };
@@ -252,18 +251,18 @@ export const Dashboard = ({ user, onLogout, onOpenLegal, allowedDomains, onAllow
                         
                         {resFormType === 'file' && <div className="border-2 border-dashed border-slate-300 rounded-lg p-6 text-center cursor-pointer relative hover:bg-slate-50"><input type="file" className="absolute inset-0 opacity-0 cursor-pointer" onChange={(e) => {if(e.target.files && e.target.files[0]) setSelectedFile(e.target.files[0]);}} /><div className="flex flex-col items-center pointer-events-none"><UploadCloud className="text-slate-400 mb-2" size={32} /><span className="text-sm font-medium text-slate-600">{selectedFile ? selectedFile.name : (editingResourceId && resFormContent ? "Fichier actuel conservé" : "Cliquez pour sélectionner")}</span></div></div>}
                         
-                        {/* --- REMPLACEMENT DU TEXTAREA PAR L'ÉDITEUR RICHE --- */}
+                        {/* --- EDITEUR RICHE --- */}
                         {resFormType === 'text' && (
                             <div>
                                 <label className="block text-xs font-bold text-slate-500 mb-1">Contenu de l'article</label>
                                 <div className="bg-white">
                                     <ReactQuill 
                                         theme="snow" 
-                                        value={resFormContent} 
+                                        value={resFormContent || ''} // Protection contre null
                                         onChange={setResFormContent} 
                                         modules={QUILL_MODULES}
                                         formats={QUILL_FORMATS}
-                                        className="h-64 mb-12" // Hauteur définie pour laisser la place
+                                        className="h-64 mb-12" 
                                     />
                                 </div>
                             </div>
