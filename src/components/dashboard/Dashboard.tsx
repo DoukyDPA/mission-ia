@@ -59,7 +59,8 @@ export const Dashboard = ({ user, onLogout, onOpenLegal, allowedDomains, onAllow
   const [editingUserId, setEditingUserId] = useState<string | number | null>(null);
   const [userFormEmail, setUserFormEmail] = useState('');
   const [userFormName, setUserFormName] = useState('');
-  const [userFormRole, setUserFormRole] = useState('Conseiller');
+  // MODIFICATION ICI : Valeur par défaut changée de 'Conseiller' à 'Utilisateur'
+  const [userFormRole, setUserFormRole] = useState('Utilisateur');
   const [userFormStructure, setUserFormStructure] = useState<string | number>('');
 
   const [domainFormValue, setDomainFormValue] = useState('');
@@ -162,7 +163,7 @@ export const Dashboard = ({ user, onLogout, onOpenLegal, allowedDomains, onAllow
   }
 
   const prepareEditUser = (u: User) => { setModalMode('user'); setEditingUserId(u.id); setUserFormName(u.name); setUserFormEmail(u.email); setUserFormRole(u.role); setUserFormStructure(u.structure_id || (structures[0] ? structures[0].id : '')); setIsModalOpen(true); }
-  const prepareInviteUser = () => { setModalMode('user'); setEditingUserId(null); setUserFormName(''); setUserFormEmail(''); setUserFormRole('Conseiller'); setUserFormStructure(structures[0] ? structures[0].id : ''); setIsModalOpen(true); }
+  const prepareInviteUser = () => { setModalMode('user'); setEditingUserId(null); setUserFormName(''); setUserFormEmail(''); setUserFormRole('Utilisateur'); setUserFormStructure(structures[0] ? structures[0].id : ''); setIsModalOpen(true); }
 
   // --- SOUMISSION DES FORMULAIRES ---
   const handleSubmitPrompt = async () => {
@@ -322,7 +323,7 @@ export const Dashboard = ({ user, onLogout, onOpenLegal, allowedDomains, onAllow
                   )}
                   {modalMode === 'domain' && <><input value={domainFormValue} onChange={e=>setDomainFormValue(e.target.value)} className="w-full border p-2 rounded" placeholder="domaine.com" required/><select value={domainFormStructure} onChange={e=>setDomainFormStructure(e.target.value)} className="w-full border p-2 rounded"><option value="">-- Structure --</option>{structures.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}</select></>}
                   
-                  {/* --- CORRECTION ICI : Formulaire User avec Sélecteur Structure --- */}
+                  {/* --- MODIFICATION ICI : "Utilisateur" remplace "Conseiller" --- */}
                   {modalMode === 'user' && (
                     <>
                         <input value={userFormName} onChange={e=>setUserFormName(e.target.value)} className="w-full border p-2 rounded" placeholder="Nom"/>
@@ -331,7 +332,7 @@ export const Dashboard = ({ user, onLogout, onOpenLegal, allowedDomains, onAllow
                         <div>
                             <label className="block text-xs font-bold text-slate-500 mb-1">Rôle</label>
                             <select value={userFormRole} onChange={e=>setUserFormRole(e.target.value)} className="w-full border p-2 rounded">
-                                <option>Conseiller</option>
+                                <option>Utilisateur</option>
                                 <option>Admin</option>
                             </select>
                         </div>
