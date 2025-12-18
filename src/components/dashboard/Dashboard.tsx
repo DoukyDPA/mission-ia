@@ -244,15 +244,17 @@ export const Dashboard = ({ user, onLogout, onOpenLegal, allowedDomains, onAllow
          {(currentTab === 'structures' || currentTab === 'users' || currentTab === 'domains') && <AdminPanel currentTab={currentTab} structures={structures} users={adminUsers} domains={allowedDomains} onAdd={() => { if(currentTab==='structures') prepareCreateStructure(); else if(currentTab==='domains') {setModalMode('domain'); setIsModalOpen(true);} }} onDelete={deleteItem} onEditUser={prepareEditUser} onEditStructure={prepareEditStructure} onInviteUser={prepareInviteUser} />}
       </main>
 
-{/* --- MODALE LECTURE CORRIGÉE --- */}
+      {/* --- MODALE LECTURE (CORRECTION DÉFINITIVE) --- */}
       <Modal isOpen={!!viewingResource} onClose={() => setViewingResource(null)} title={viewingResource?.title || 'Lecture'}>
-          <div 
-             // 1. On retire 'ql-editor' qui casse les marges
-             // 2. On ajoute 'break-words' pour couper les mots en fin de ligne
-             // 3. On ajoute '[&_img]:max-w-full' pour que les images ne dépassent jamais
-             className="prose prose-sm prose-slate max-w-none text-slate-800 break-words [&_img]:max-w-full [&_img]:h-auto [&_img]:rounded-lg"
-             dangerouslySetInnerHTML={{ __html: viewingResource?.description || '' }}
-          />
+          <div className="w-full overflow-hidden">
+              <div 
+                 // 1. '!whitespace-normal' : Force le texte à aller à la ligne naturellement (IGNORE les retours chariots bizarres)
+                 // 2. '!break-words' : Coupe les mots proprement seulement si nécessaire
+                 // 3. 'select-text' : Permet aux utilisateurs de sélectionner le texte pour le copier
+                 className="prose prose-sm prose-slate max-w-none text-slate-800 !whitespace-normal !break-words select-text [&_img]:max-w-full [&_img]:h-auto [&_img]:rounded-lg [&_p]:mb-2"
+                 dangerouslySetInnerHTML={{ __html: viewingResource?.description || '' }}
+              />
+          </div>
       </Modal>
 
       {/* MODALE D'ÉDITION (Le gros formulaire polyvalent) */}
