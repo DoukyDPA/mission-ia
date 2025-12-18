@@ -1,5 +1,12 @@
 // src/types/index.ts
-export interface Structure { id: string | number; name: string; city: string; }
+export interface Structure {
+  id: string | number;
+  name: string;
+  city: string;
+  // Ajoutez juste ces deux lignes :
+  has_charter?: boolean;
+  charter_url?: string;
+}
 export interface User { id: string | number; email: string; name: string; role: string; missionLocale: string; avatar: string; structure_id?: string | number; }
 export interface Resource { id: string | number; title: string; type: 'file' | 'text' | 'link' | 'pdf' | 'video'; date: string; size?: string; category: string; access: string; file_url?: string; description?: string; uploaded_by?: string | number; }
 export interface Prompt { 
