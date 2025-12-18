@@ -68,8 +68,8 @@ export const Dashboard = ({ user, onLogout, onOpenLegal, allowedDomains, onAllow
   const isAdmin = (user.role || '').trim().toLowerCase() === 'admin';
 
   // Récupérer la structure de l'utilisateur courant pour la sidebar
-  const userStructure = structures.find(s => s.id === user.structure_id) || null;
-
+  const userStructure = structures.find(s => s.id == user.structure_id) || null;
+  
   // ... (Gardez refreshData et useEffect identiques)
   const refreshData = useCallback(async () => {
     if (!supabase) return; 
