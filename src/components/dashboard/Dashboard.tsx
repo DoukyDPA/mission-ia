@@ -244,10 +244,13 @@ export const Dashboard = ({ user, onLogout, onOpenLegal, allowedDomains, onAllow
          {(currentTab === 'structures' || currentTab === 'users' || currentTab === 'domains') && <AdminPanel currentTab={currentTab} structures={structures} users={adminUsers} domains={allowedDomains} onAdd={() => { if(currentTab==='structures') prepareCreateStructure(); else if(currentTab==='domains') {setModalMode('domain'); setIsModalOpen(true);} }} onDelete={deleteItem} onEditUser={prepareEditUser} onEditStructure={prepareEditStructure} onInviteUser={prepareInviteUser} />}
       </main>
 
-      {/* MODALE DE LECTURE (Pour les articles riches) */}
+{/* --- MODALE LECTURE CORRIGÉE --- */}
       <Modal isOpen={!!viewingResource} onClose={() => setViewingResource(null)} title={viewingResource?.title || 'Lecture'}>
           <div 
-             className="prose prose-sm prose-slate max-w-none text-slate-800 ql-editor"
+             // 1. On retire 'ql-editor' qui casse les marges
+             // 2. On ajoute 'break-words' pour couper les mots en fin de ligne
+             // 3. On ajoute '[&_img]:max-w-full' pour que les images ne dépassent jamais
+             className="prose prose-sm prose-slate max-w-none text-slate-800 break-words [&_img]:max-w-full [&_img]:h-auto [&_img]:rounded-lg"
              dangerouslySetInnerHTML={{ __html: viewingResource?.description || '' }}
           />
       </Modal>
