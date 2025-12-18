@@ -102,6 +102,13 @@ export const Dashboard = ({ user, onLogout, onOpenLegal, allowedDomains, onAllow
   const isAdmin = (user.role || '').trim().toLowerCase() === 'admin';
   // Récupération sécurisée de la structure de l'utilisateur courant (pour le bouton "Ma Charte" sidebar)
   const userStructure = structures.find(s => s.id == user.structure_id) || null;
+  // Fonction de nettoyage pour forcer l'affichage correct
+  const cleanHtmlContent = (html: string) => {
+      if (!html) return "";
+      return html
+          .replace(/style="[^"]*"/g, "") // Supprime tous les styles forcés (largeur, pas de retour à la ligne...)
+          .replace(/&nbsp;/g, " ");       // Remplace les espaces insécables par des espaces normaux
+  };
 
   // --- CHARGEMENT DES DONNÉES (REFRESH) ---
   const refreshData = useCallback(async () => {
@@ -244,15 +251,21 @@ export const Dashboard = ({ user, onLogout, onOpenLegal, allowedDomains, onAllow
          {(currentTab === 'structures' || currentTab === 'users' || currentTab === 'domains') && <AdminPanel currentTab={currentTab} structures={structures} users={adminUsers} domains={allowedDomains} onAdd={() => { if(currentTab==='structures') prepareCreateStructure(); else if(currentTab==='domains') {setModalMode('domain'); setIsModalOpen(true);} }} onDelete={deleteItem} onEditUser={prepareEditUser} onEditStructure={prepareEditStructure} onInviteUser={prepareInviteUser} />}
       </main>
 
-      {/* --- MODALE LECTURE (CORRECTION DÉFINITIVE) --- */}
+{/* --- MODALE LECTURE (SOLUTION NUCLÉAIRE) --- */}
       <Modal isOpen={!!viewingResource} onClose={() => setViewingResource(null)} title={viewingResource?.title || 'Lecture'}>
-          <div className="w-full overflow-hidden">
+          <div className="w-full">
               <div 
-                 // 1. '!whitespace-normal' : Force le texte à aller à la ligne naturellement (IGNORE les retours chariots bizarres)
-                 // 2. '!break-words' : Coupe les mots proprement seulement si nécessaire
-                 // 3. 'select-text' : Permet aux utilisateurs de sélectionner le texte pour le copier
-                 className="prose prose-sm prose-slate max-w-none text-slate-800 !whitespace-normal !break-words select-text [&_img]:max-w-full [&_img]:h-auto [&_img]:rounded-lg [&_p]:mb-2"
-                 dangerouslySetInnerHTML={{ __html: viewingResource?.description || '' }}
+                 // [&_*] cible TOUS les enfants (p, span, div...)
+                 // !whitespace-normal force le retour à la ligne partout
+                 // !break-words force la coupure des mots longs partout
+                 className="
+                    prose prose-sm prose-slate max-w-none text-slate-800 
+                    !whitespace-normal !break-words 
+                    [&_*]:!whitespace-normal [&_*]:!break-words [&_*]:!max-w-full
+                    [&_img]:!max-w-full [&_img]:!h-auto [&_img]:rounded-lg [&_img]:my-4
+                    [&_p]:mb-3 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5
+                 "
+                 dangerouslySetInnerHTML={{ __html: cleanHtmlContent(viewingResource?.description || '') }}
               />
           </div>
       </Modal>
