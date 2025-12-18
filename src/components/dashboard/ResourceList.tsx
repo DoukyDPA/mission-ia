@@ -1,3 +1,4 @@
+// src/components/dashboard/ResourceList.tsx
 import React, { useState } from 'react';
 import { AlignLeft, Pencil, Trash2, Calendar, ArrowRight, ChevronDown, Video, PlayCircle, Link as LinkIcon, Globe, Download, FileText } from 'lucide-react';
 import { Resource } from '@/types';
@@ -20,6 +21,13 @@ export const ResourceList = ({ resources, isAdmin, onEdit, onDelete, onView }: R
   const tools = resources.filter(r => r.type === 'link');
   const files = resources.filter(r => ['file', 'pdf'].includes(r.type));
 
+  // Fonction pour nettoyer le HTML dans l'aperçu (retirer les images, ne garder que du texte)
+  const stripHtml = (html: string) => {
+      const tmp = document.createElement("DIV");
+      tmp.innerHTML = html;
+      return tmp.textContent || tmp.innerText || "";
+  }
+
   return (
     <div className="space-y-12">
         {/* ARTICLES */}
@@ -34,7 +42,12 @@ export const ResourceList = ({ resources, isAdmin, onEdit, onDelete, onView }: R
                                 {isAdmin && <div className="flex gap-1"><button onClick={() => onEdit(r)} className="text-slate-300 hover:text-[#116862] p-1"><Pencil size={14}/></button><button onClick={() => onDelete(r.id)} className="text-slate-300 hover:text-red-500 p-1"><Trash2 size={14}/></button></div>}
                             </div>
                             <h4 className="font-bold text-slate-800 mb-2">{r.title}</h4>
-                            <div className="text-sm text-slate-600 line-clamp-3 mb-4 flex-1">{r.description}</div>
+                            
+                            {/* APERÇU DU CONTENU (TEXTE SEULEMENT) */}
+                            <div className="text-sm text-slate-600 line-clamp-3 mb-4 flex-1">
+                                {r.description ? stripHtml(r.description) : "Aucun contenu"}
+                            </div>
+
                             <div className="flex items-center justify-between mt-auto pt-4 border-t border-slate-50">
                                 <div className="text-xs text-slate-400 flex items-center gap-1"><Calendar size={12}/> {r.date || "Date inconnue"}</div>
                                 <button onClick={() => onView(r)} className="text-sm font-semibold text-amber-600 hover:text-amber-700 flex items-center gap-1">Lire <ArrowRight size={14}/></button>
