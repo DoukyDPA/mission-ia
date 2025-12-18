@@ -1,10 +1,11 @@
 import React from 'react';
-import { Menu, X, GitFork, BookOpen, Building2, Globe, Users, LogOut, ShieldCheck } from 'lucide-react';
+import { Menu, X, GitFork, BookOpen, Building2, Globe, Users, LogOut, ShieldCheck, FileText } from 'lucide-react'; // Ajout de FileText
 import { SidebarItem } from '@/components/ui/SidebarItem';
-import { User } from '@/types';
+import { User, Structure } from '@/types'; // Import de Structure
 
 interface SidebarProps {
   user: User;
+  userStructure: Structure | null; // <-- NOUVEAU : On passe la structure de l'utilisateur
   currentTab: string;
   setCurrentTab: (tab: string) => void;
   isAdmin: boolean;
@@ -14,7 +15,7 @@ interface SidebarProps {
   setIsMobileMenuOpen: (isOpen: boolean) => void;
 }
 
-export const Sidebar = ({ user, currentTab, setCurrentTab, isAdmin, onLogout, onOpenLegal, isMobileMenuOpen, setIsMobileMenuOpen }: SidebarProps) => {
+export const Sidebar = ({ user, userStructure, currentTab, setCurrentTab, isAdmin, onLogout, onOpenLegal, isMobileMenuOpen, setIsMobileMenuOpen }: SidebarProps) => {
   
   const MenuContent = () => (
     <div className="flex flex-col h-full justify-between">
@@ -30,6 +31,22 @@ export const Sidebar = ({ user, currentTab, setCurrentTab, isAdmin, onLogout, on
         <nav className="p-4 space-y-1">
            <SidebarItem icon={GitFork} label="Prompts" active={currentTab === 'prompts'} onClick={() => { setCurrentTab('prompts'); setIsMobileMenuOpen(false); }} />
            <SidebarItem icon={BookOpen} label="Ressources" active={currentTab === 'resources'} onClick={() => { setCurrentTab('resources'); setIsMobileMenuOpen(false); }} />
+           
+           {/* --- BOUTON CHARTE IA (Visible seulement si activé pour la structure) --- */}
+           {userStructure?.has_charter && userStructure?.charter_url && (
+             <div className="mt-4 mb-2">
+                <a 
+                  href={userStructure.charter_url} 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors mb-1 text-[#116862] font-bold bg-[#116862]/5 hover:bg-[#116862]/10 border border-[#116862]/20"
+                >
+                  <FileText size={20} />
+                  <span>Ma Charte IA</span>
+                </a>
+             </div>
+           )}
+
            {isAdmin && (
              <>
                <div className="mt-6 mb-2 px-4 text-xs font-bold text-slate-400 uppercase">Administration</div>
@@ -63,15 +80,12 @@ export const Sidebar = ({ user, currentTab, setCurrentTab, isAdmin, onLogout, on
 
   return (
     <>
-      {/* Header Mobile */}
       <div className="md:hidden bg-white border-b p-4 flex justify-between items-center sticky top-0 z-20 shadow-sm">
          <div className="flex items-center gap-2 font-bold text-lg text-[#116862]">
              <img src="/logo.png" alt="Logo" className="h-10 w-auto object-contain" />
          </div>
          <button onClick={() => setIsMobileMenuOpen(true)} className="text-slate-600 p-1"><Menu /></button>
       </div>
-
-      {/* Overlay Mobile */}
       {isMobileMenuOpen && (
         <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-sm md:hidden">
             <div className="bg-white w-3/4 h-full shadow-xl animate-in slide-in-from-left duration-200">
@@ -83,11 +97,7 @@ export const Sidebar = ({ user, currentTab, setCurrentTab, isAdmin, onLogout, on
             </div>
         </div>
       )}
-
-      {/* Sidebar Desktop */}
-      <aside className="w-64 bg-white border-r border-slate-200 hidden md:flex flex-col z-10 justify-between sticky top-0 h-screen">
-          <MenuContent />
-      </aside>
+      <aside className="w-64 bg-white border-r border-slate-200 hidden md:flex flex-col z-10 justify-between sticky top-0 h-screen"><MenuContent /></aside>
     </>
   );
 };
