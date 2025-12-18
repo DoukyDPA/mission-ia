@@ -1,6 +1,6 @@
-// ... (Imports habituels)
+// src/components/dashboard/Dashboard.tsx
 import React, { useState, useEffect, useCallback } from 'react';
-import { Plus, X, UploadCloud } from 'lucide-react'; // Garder les imports existants
+import { Plus, X, UploadCloud } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { User, AllowedDomain, Prompt, Resource, Structure } from '@/types';
 import { Modal } from '@/components/ui/Modal';
@@ -9,7 +9,7 @@ import { PromptList } from './PromptList';
 import { ResourceList } from './ResourceList';
 import { AdminPanel } from './AdminPanel';
 
-// ... (Gardez les Mocks et l'interface DashboardProps)
+// Données Mock (Secours)
 const MOCK_STRUCTURES = [{ id: 1, name: "Mission Locale de Lyon", city: "Lyon" }];
 const MOCK_PROMPTS = [{ id: 1, title: "Exemple", content: "Contenu...", author: "Admin", role: "Admin", avatar: "AD", missionLocale: "National", date: "Hier", tags: ["Administratif"], likes: 0, forks: 0, isFork: false }];
 
@@ -22,33 +22,40 @@ interface DashboardProps {
 }
 
 export const Dashboard = ({ user, onLogout, onOpenLegal, allowedDomains, onAllowedDomainsChange }: DashboardProps) => {
-  // ... (Gardez les états existants jusqu'aux formulaires)
   const [currentTab, setCurrentTab] = useState('prompts');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  
+  // Données
   const [prompts, setPrompts] = useState<Prompt[]>([]);
   const [resources, setResources] = useState<Resource[]>([]);
   const [structures, setStructures] = useState<Structure[]>([]);
   const [adminUsers, setAdminUsers] = useState<User[]>([]);
+  
+  // UI & Filtres
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState('');
   const [viewingResource, setViewingResource] = useState<Resource | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  
+  // Catégories (State)
   const [availableCategories, setAvailableCategories] = useState(['Administratif', 'Relation Jeunes', 'Emploi', 'Direction', 'RH', 'Projets', 'Autre']);
   const [selectedCategory, setSelectedCategory] = useState('Tous');
 
-  // ... (Gardez les formulaires Prompt et Resource comme avant)
+  // Formulaires : Prompts
   const [editingPromptId, setEditingPromptId] = useState<string | number | null>(null);
   const [promptFormTitle, setPromptFormTitle] = useState('');
   const [promptFormContent, setPromptFormContent] = useState('');
   const [promptFormTag, setPromptFormTag] = useState('Administratif');
   const [parentPromptId, setParentPromptId] = useState<string | number | null>(null);
 
+  // Formulaires : Ressources
   const [editingResourceId, setEditingResourceId] = useState<string | number | null>(null);
   const [resFormType, setResFormType] = useState<'file' | 'text' | 'link' | 'video'>('file');
   const [resFormContent, setResFormContent] = useState('');
   const [resFormTitle, setResFormTitle] = useState('');
   const [resFormCategory, setResFormCategory] = useState('Formation');
 
+  // Formulaires : Admin
   const [editingUserId, setEditingUserId] = useState<string | number | null>(null);
   const [userFormEmail, setUserFormEmail] = useState('');
   const [userFormName, setUserFormName] = useState('');
@@ -58,7 +65,7 @@ export const Dashboard = ({ user, onLogout, onOpenLegal, allowedDomains, onAllow
   const [domainFormValue, setDomainFormValue] = useState('');
   const [domainFormStructure, setDomainFormStructure] = useState<string | number>('');
 
-  // --- NOUVEAU : Formulaire Structure ---
+  // Formulaire Structure
   const [editingStructureId, setEditingStructureId] = useState<string | number | null>(null);
   const [structFormName, setStructFormName] = useState('');
   const [structFormCity, setStructFormCity] = useState('');
@@ -69,17 +76,20 @@ export const Dashboard = ({ user, onLogout, onOpenLegal, allowedDomains, onAllow
 
   // Récupérer la structure de l'utilisateur courant pour la sidebar
   const userStructure = structures.find(s => s.id == user.structure_id) || null;
-  
-  // ... (Gardez refreshData et useEffect identiques)
+
+  // --- CHARGEMENT DES DONNÉES ---
   const refreshData = useCallback(async () => {
     if (!supabase) return; 
     try {
+        // 1. Prompts
         const { data: pData, error: pError } = await supabase.from('prompts').select(`*, profiles(full_name, avatar_url, role), structures(name)`).order('created_at', { ascending: false });
         if (pError) throw pError;
+        
         if (pData) {
             const usedTags = new Set(['Administratif', 'Relation Jeunes', 'Emploi', 'Direction', 'RH', 'Projets', 'Autre']);
             pData.forEach((p: any) => { if (p.tags && Array.isArray(p.tags)) p.tags.forEach((t: string) => usedTags.add(t)); });
             setAvailableCategories(Array.from(usedTags).sort());
+
             setPrompts(pData.map((p: any) => ({
                 id: p.id, title: p.title, content: p.content, author: p.profiles?.full_name || 'Inconnu', role: p.profiles?.role || 'Membre',
                 avatar: (p.profiles?.full_name || 'U').substring(0,2).toUpperCase(), missionLocale: p.structures?.name || 'National',
@@ -87,15 +97,19 @@ export const Dashboard = ({ user, onLogout, onOpenLegal, allowedDomains, onAllow
                 parentId: p.parent_id, parentAuthor: p.parent_id ? 'Autre' : undefined, user_id: p.user_id
             })));
         }
+
+        // 2. Ressources
         const { data: rData } = await supabase.from('resources').select('*').order('created_at', { ascending: false });
         if (rData) setResources(rData.map((r: any) => ({ ...r, type: r.file_type || 'file', date: new Date(r.created_at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' }) })));
         
+        // 3. Structures & Domaines
         const { data: sData } = await supabase.from('structures').select('*');
         if (sData) setStructures(sData);
         
         const { data: dData } = await supabase.from('allowed_domains').select('*, structures(name)');
         if (dData) onAllowedDomainsChange(dData.map((d: any) => ({ id: d.id, domain: d.domain, structure_id: d.structure_id, structure_name: d.structures?.name })));
         
+        // 4. Utilisateurs (Admin)
         if (isAdmin) {
             const { data: uData } = await supabase.from('profiles').select('*, structures(name)');
             if (uData) setAdminUsers(uData.map((u: any) => ({ id: u.id, email: u.email, name: u.full_name || 'Sans nom', role: u.role, missionLocale: u.structures?.name || 'Non assigné', avatar: (u.full_name || 'U').substring(0,2).toUpperCase(), structure_id: u.structure_id })));
@@ -103,20 +117,38 @@ export const Dashboard = ({ user, onLogout, onOpenLegal, allowedDomains, onAllow
     } catch (e) { console.error("Erreur refresh:", e); }
   }, [isAdmin, onAllowedDomainsChange]);
 
-  useEffect(() => { if (!supabase) { setPrompts(MOCK_PROMPTS); setStructures(MOCK_STRUCTURES); onAllowedDomainsChange([]); } else { refreshData(); } }, [refreshData, onAllowedDomainsChange]);
-  
-  // Actions de base
+  useEffect(() => { 
+      if (!supabase) { setPrompts(MOCK_PROMPTS); setStructures(MOCK_STRUCTURES); onAllowedDomainsChange([]); } 
+      else { refreshData(); } 
+  }, [refreshData, onAllowedDomainsChange]);
+
+  // --- ACTIONS ---
   const copyPrompt = (content: string) => { navigator.clipboard.writeText(content); alert("Prompt copié !"); };
   const deleteItem = async (table: string, id: string|number) => { if(!confirm("Supprimer ?")) return; if(supabase) { await supabase.from(table).delete().eq('id', id); await refreshData(); } };
   
-  // Prepare Handlers
-  const prepareCreatePrompt = () => { setModalMode('prompt'); setEditingPromptId(null); setPromptFormTitle(''); setPromptFormContent(''); setPromptFormTag(availableCategories[0]); setParentPromptId(null); setIsModalOpen(true); }
-  const prepareForkPrompt = (original: Prompt) => { setModalMode('prompt'); setEditingPromptId(null); setPromptFormTitle(`Variante : ${original.title}`); setPromptFormContent(original.content); setPromptFormTag(original.tags[0] || 'Administratif'); setParentPromptId(original.id); setIsModalOpen(true); }
-  const prepareEditPrompt = (original: Prompt) => { setModalMode('prompt'); setEditingPromptId(original.id); setPromptFormTitle(original.title); setPromptFormContent(original.content); setPromptFormTag(original.tags[0] || availableCategories[0]); setParentPromptId(null); setIsModalOpen(true); }
-  const prepareCreateResource = () => { setModalMode('resource'); setEditingResourceId(null); setResFormTitle(''); setResFormCategory('Formation'); setResFormType('file'); setResFormContent(''); setSelectedFile(null); setIsModalOpen(true); }
-  const prepareEditResource = (r: Resource) => { setModalMode('resource'); setEditingResourceId(r.id); setResFormTitle(r.title); setResFormCategory(r.category); setResFormType(r.type as any); setResFormContent(r.type === 'text' ? (r.description || '') : (r.file_url || '')); setSelectedFile(null); setIsModalOpen(true); }
+  // --- PRÉPARATION DES FORMULAIRES ---
+  const prepareCreatePrompt = () => { 
+      setModalMode('prompt'); setEditingPromptId(null); setPromptFormTitle(''); setPromptFormContent(''); 
+      setPromptFormTag(availableCategories[0]); setParentPromptId(null); setIsModalOpen(true); 
+  }
+  const prepareForkPrompt = (original: Prompt) => { 
+      setModalMode('prompt'); setEditingPromptId(null); setPromptFormTitle(`Variante : ${original.title}`); setPromptFormContent(original.content); 
+      setPromptFormTag(original.tags[0] || 'Administratif'); setParentPromptId(original.id); setIsModalOpen(true); 
+  }
+  const prepareEditPrompt = (original: Prompt) => { 
+      setModalMode('prompt'); setEditingPromptId(original.id); setPromptFormTitle(original.title); setPromptFormContent(original.content); 
+      setPromptFormTag(original.tags[0] || availableCategories[0]); 
+      setParentPromptId(null); setIsModalOpen(true); 
+  }
+  const prepareCreateResource = () => { 
+      setModalMode('resource'); setEditingResourceId(null); setResFormTitle(''); setResFormCategory('Formation'); setResFormType('file'); setResFormContent(''); setSelectedFile(null); setIsModalOpen(true); 
+  }
+  const prepareEditResource = (r: Resource) => { 
+      setModalMode('resource'); setEditingResourceId(r.id); setResFormTitle(r.title); setResFormCategory(r.category); 
+      // @ts-ignore
+      setResFormType(r.type); setResFormContent(r.type === 'text' ? (r.description || '') : (r.file_url || '')); setSelectedFile(null); setIsModalOpen(true); 
+  }
   
-  // Préparer Admin
   const prepareCreateStructure = () => { 
       setModalMode('structure'); setEditingStructureId(null); 
       setStructFormName(''); setStructFormCity(''); setStructFormHasCharter(false); setStructFormCharterUrl(''); setSelectedFile(null);
@@ -128,69 +160,85 @@ export const Dashboard = ({ user, onLogout, onOpenLegal, allowedDomains, onAllow
       setStructFormHasCharter(s.has_charter || false); setStructFormCharterUrl(s.charter_url || ''); setSelectedFile(null);
       setIsModalOpen(true); 
   }
-  
+
   const prepareEditUser = (u: User) => { setModalMode('user'); setEditingUserId(u.id); setUserFormName(u.name); setUserFormEmail(u.email); setUserFormRole(u.role); setUserFormStructure(u.structure_id || (structures[0] ? structures[0].id : '')); setIsModalOpen(true); }
   const prepareInviteUser = () => { setModalMode('user'); setEditingUserId(null); setUserFormName(''); setUserFormEmail(''); setUserFormRole('Conseiller'); setUserFormStructure(structures[0] ? structures[0].id : ''); setIsModalOpen(true); }
 
-  // Submits
+  // --- SOUMISSION DES FORMULAIRES ---
   const handleSubmitPrompt = async () => {
     if (!supabase) { setIsModalOpen(false); return; }
     try {
         const payload = { title: promptFormTitle, content: promptFormContent, tags: [promptFormTag] };
-        if (editingPromptId) { const { error } = await supabase.from('prompts').update(payload).eq('id', editingPromptId); if (error) throw error; } 
-        else { const { data: profile } = await supabase.from('profiles').select('structure_id').eq('id', user.id).single(); const { error } = await supabase.from('prompts').insert({ ...payload, user_id: user.id, structure_id: profile?.structure_id, is_fork: !!parentPromptId, parent_id: parentPromptId }); if (error) throw error; }
-        await refreshData(); setIsModalOpen(false);
-    } catch (err: any) { alert("Erreur : " + err.message); }
+        if (editingPromptId) {
+            const { error } = await supabase.from('prompts').update(payload).eq('id', editingPromptId);
+            if (error) throw error;
+        } else { 
+            const { data: profile } = await supabase.from('profiles').select('structure_id').eq('id', user.id).single(); 
+            const { error } = await supabase.from('prompts').insert({ ...payload, user_id: user.id, structure_id: profile?.structure_id, is_fork: !!parentPromptId, parent_id: parentPromptId }); 
+            if (error) throw error;
+        }
+        await refreshData(); 
+        setIsModalOpen(false);
+    } catch (err: any) { alert("Erreur lors de la sauvegarde : " + err.message); }
   };
 
   const handleCreateResource = async () => {
     if (!supabase) { setIsModalOpen(false); return; }
     try {
         let finalUrl = resFormContent;
-        if (resFormType === 'file' && selectedFile) { const fileName = `${user.id}/${Date.now()}.${selectedFile.name.split('.').pop()}`; await supabase.storage.from('documents').upload(fileName, selectedFile); finalUrl = supabase.storage.from('documents').getPublicUrl(fileName).data.publicUrl || ''; }
-        else if (resFormType === 'text') { finalUrl = ''; }
+        if (resFormType === 'file') {
+            if (selectedFile) { 
+                const fileName = `${user.id}/${Date.now()}.${selectedFile.name.split('.').pop()}`; 
+                await supabase.storage.from('documents').upload(fileName, selectedFile); 
+                finalUrl = supabase.storage.from('documents').getPublicUrl(fileName).data.publicUrl || ''; 
+            }
+        } else if (resFormType === 'text') { finalUrl = ''; }
+        
         const payload = { title: resFormTitle, file_type: resFormType, category: resFormCategory, access_scope: 'global', target_structure_id: null, file_url: finalUrl, description: resFormType === 'text' ? resFormContent : '', uploaded_by: user.id };
-        if (editingResourceId) { const { error } = await supabase.from('resources').update(payload).eq('id', editingResourceId); if (error) throw error; } else { const { error } = await supabase.from('resources').insert(payload); if (error) throw error; }
+        
+        if (editingResourceId) {
+            const { error } = await supabase.from('resources').update(payload).eq('id', editingResourceId);
+            if (error) throw error;
+        } else {
+            const { error } = await supabase.from('resources').insert(payload);
+            if (error) throw error;
+        }
         await refreshData(); setIsModalOpen(false);
     } catch (err: any) { alert("Erreur ressource : " + err.message); }
   };
 
-  // --- NOUVEAU HANDLER STRUCTURE ---
   const handleSubmitStructure = async () => {
       if (!supabase) { setIsModalOpen(false); return; }
       try {
           let charterUrl = structFormCharterUrl;
-          
-          // Si on a activé la charte ET qu'on a sélectionné un fichier, on l'upload
           if (structFormHasCharter && selectedFile) {
              const fileName = `charters/${Date.now()}_${selectedFile.name.replace(/[^a-zA-Z0-9.]/g, '_')}`;
              const { error: uploadError } = await supabase.storage.from('documents').upload(fileName, selectedFile);
              if (uploadError) throw uploadError;
              charterUrl = supabase.storage.from('documents').getPublicUrl(fileName).data.publicUrl;
           }
-
-          const payload = { 
-              name: structFormName, 
-              city: structFormCity,
-              has_charter: structFormHasCharter,
-              charter_url: structFormHasCharter ? charterUrl : null // Si désactivé, on retire l'URL
-          };
-
-          if (editingStructureId) {
-             await supabase.from('structures').update(payload).eq('id', editingStructureId);
-          } else {
-             await supabase.from('structures').insert(payload);
-          }
+          const payload = { name: structFormName, city: structFormCity, has_charter: structFormHasCharter, charter_url: structFormHasCharter ? charterUrl : null };
+          if (editingStructureId) await supabase.from('structures').update(payload).eq('id', editingStructureId);
+          else await supabase.from('structures').insert(payload);
           await refreshData(); setIsModalOpen(false);
       } catch (e: any) { alert("Erreur structure: " + e.message); }
   }
 
-  const handleSubmitUser = async () => { if (editingUserId) await supabase?.from('profiles').update({ full_name: userFormName, role: userFormRole, structure_id: userFormStructure }).eq('id', editingUserId); else alert(`Invitation à ${userFormEmail}`); await refreshData(); setIsModalOpen(false); };
-  const handleCreateDomain = async () => { const normalized = domainFormValue.trim().toLowerCase(); await supabase?.from('allowed_domains').insert({ domain: normalized, structure_id: domainFormStructure || null, created_by: user.id }); await refreshData(); setIsModalOpen(false); }
+  const handleSubmitUser = async () => {
+    if (!supabase) { alert("Simulé: Invitation à " + userFormEmail); setIsModalOpen(false); return; }
+    if (editingUserId) await supabase.from('profiles').update({ full_name: userFormName, role: userFormRole, structure_id: userFormStructure }).eq('id', editingUserId); 
+    await refreshData(); setIsModalOpen(false);
+  };
+
+  const handleCreateDomain = async () => { 
+      if (!supabase) { setIsModalOpen(false); return; }
+      const normalized = domainFormValue.trim().toLowerCase(); 
+      await supabase.from('allowed_domains').insert({ domain: normalized, structure_id: domainFormStructure || null, created_by: user.id }); 
+      await refreshData(); setIsModalOpen(false); 
+  }
 
   return (
     <div className="min-h-screen bg-slate-50 font-sans text-slate-900 flex flex-col md:flex-row">
-      {/* On passe userStructure à la Sidebar */}
       <Sidebar user={user} userStructure={userStructure} currentTab={currentTab} setCurrentTab={setCurrentTab} isAdmin={isAdmin} onLogout={onLogout} onOpenLegal={onOpenLegal} isMobileMenuOpen={isMobileMenuOpen} setIsMobileMenuOpen={setIsMobileMenuOpen} />
       
       <main className="flex-1 p-8">
@@ -209,7 +257,6 @@ export const Dashboard = ({ user, onLogout, onOpenLegal, allowedDomains, onAllow
          {currentTab === 'prompts' && <PromptList prompts={prompts} user={user} isAdmin={isAdmin} categories={availableCategories} selectedCategory={selectedCategory} setSelectedCategory={setSelectedCategory} onCopy={copyPrompt} onEdit={prepareEditPrompt} onDelete={(id) => deleteItem('prompts', id)} onFork={prepareForkPrompt} />}
          {currentTab === 'resources' && <ResourceList resources={resources} isAdmin={isAdmin} onEdit={prepareEditResource} onDelete={(id) => deleteItem('resources', id)} onView={setViewingResource} />}
          
-         {/* Admin Panel avec support édition structure */}
          {(currentTab === 'structures' || currentTab === 'users' || currentTab === 'domains') && <AdminPanel currentTab={currentTab} structures={structures} users={adminUsers} domains={allowedDomains} onAdd={() => { if(currentTab==='structures') prepareCreateStructure(); else if(currentTab==='domains') {setModalMode('domain'); setIsModalOpen(true);} }} onDelete={deleteItem} onEditUser={prepareEditUser} onEditStructure={prepareEditStructure} onInviteUser={prepareInviteUser} />}
       </main>
 
@@ -252,19 +299,15 @@ export const Dashboard = ({ user, onLogout, onOpenLegal, allowedDomains, onAllow
                         <div><label className="block text-xs font-bold text-slate-500 mb-1">Catégorie</label><select value={resFormCategory} onChange={e=>setResFormCategory(e.target.value)} className="w-full border p-2 rounded bg-white"><option>Formation</option><option>Veille</option><option>Juridique</option><option>Outil</option><option>Interne</option></select></div>
                      </>
                   )}
-                  
-                  {/* --- FORMULAIRE STRUCTURE MIS À JOUR --- */}
                   {modalMode === 'structure' && (
                     <>
                         <input value={structFormName} onChange={e=>setStructFormName(e.target.value)} className="w-full border p-2 rounded" placeholder="Nom Structure" required/>
                         <input value={structFormCity} onChange={e=>setStructFormCity(e.target.value)} className="w-full border p-2 rounded" placeholder="Ville" required/>
-                        
                         <div className="border-t pt-4 mt-2">
                             <label className="flex items-center space-x-2 cursor-pointer mb-3">
                                 <input type="checkbox" checked={structFormHasCharter} onChange={e => setStructFormHasCharter(e.target.checked)} className="rounded text-[#116862] focus:ring-[#116862]" />
                                 <span className="text-sm font-bold text-slate-700">Cette structure possède une Charte IA</span>
                             </label>
-                            
                             {structFormHasCharter && (
                                 <div className="border-2 border-dashed border-slate-300 rounded-lg p-4 text-center cursor-pointer relative hover:bg-slate-50">
                                     <input type="file" accept=".pdf,.doc,.docx" className="absolute inset-0 opacity-0 cursor-pointer" onChange={(e) => {if(e.target.files && e.target.files[0]) setSelectedFile(e.target.files[0]);}} />
@@ -277,9 +320,32 @@ export const Dashboard = ({ user, onLogout, onOpenLegal, allowedDomains, onAllow
                         </div>
                     </>
                   )}
-
                   {modalMode === 'domain' && <><input value={domainFormValue} onChange={e=>setDomainFormValue(e.target.value)} className="w-full border p-2 rounded" placeholder="domaine.com" required/><select value={domainFormStructure} onChange={e=>setDomainFormStructure(e.target.value)} className="w-full border p-2 rounded"><option value="">-- Structure --</option>{structures.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}</select></>}
-                  {modalMode === 'user' && <><input value={userFormName} onChange={e=>setUserFormName(e.target.value)} className="w-full border p-2 rounded" placeholder="Nom"/><input value={userFormEmail} onChange={e=>setUserFormEmail(e.target.value)} className="w-full border p-2 rounded" placeholder="Email"/><select value={userFormRole} onChange={e=>setUserFormRole(e.target.value)} className="w-full border p-2 rounded"><option>Conseiller</option><option>Admin</option></select></>}
+                  
+                  {/* --- CORRECTION ICI : Formulaire User avec Sélecteur Structure --- */}
+                  {modalMode === 'user' && (
+                    <>
+                        <input value={userFormName} onChange={e=>setUserFormName(e.target.value)} className="w-full border p-2 rounded" placeholder="Nom"/>
+                        <input value={userFormEmail} onChange={e=>setUserFormEmail(e.target.value)} className="w-full border p-2 rounded" placeholder="Email"/>
+                        
+                        <div>
+                            <label className="block text-xs font-bold text-slate-500 mb-1">Rôle</label>
+                            <select value={userFormRole} onChange={e=>setUserFormRole(e.target.value)} className="w-full border p-2 rounded">
+                                <option>Conseiller</option>
+                                <option>Admin</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label className="block text-xs font-bold text-slate-500 mb-1">Structure</label>
+                            <select value={userFormStructure} onChange={e=>setUserFormStructure(e.target.value)} className="w-full border p-2 rounded">
+                                <option value="">-- Choisir une structure --</option>
+                                {structures.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                            </select>
+                        </div>
+                    </>
+                  )}
+
                   <button className="bg-[#116862] text-white px-4 py-2 rounded font-bold w-full">Valider</button>
                </form>
             </div>
