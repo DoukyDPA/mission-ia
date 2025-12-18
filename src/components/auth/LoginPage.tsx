@@ -1,3 +1,4 @@
+// src/components/auth/LoginPage.tsx
 import React, { useState } from 'react';
 import { Users, Lock, Globe, Building2, AlertCircle } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
@@ -57,7 +58,7 @@ export const LoginPage = ({ onLogin, onOpenLegal, allowedDomains }: LoginPagePro
              role: profile?.role || 'Conseiller',
              missionLocale: profile?.structures?.name || 'National', // Nom de la structure
              avatar: (profile?.full_name || 'U').substring(0, 2).toUpperCase(),
-             structure_id: profile?.structure_id // ID de la structure (CRUCIAL pour la charte)
+             structure_id: profile?.structure_id // ID de la structure
         });
       }
     } catch (err: any) { 
@@ -80,7 +81,17 @@ export const LoginPage = ({ onLogin, onOpenLegal, allowedDomains }: LoginPagePro
     }
 
     if (!supabase) { 
-        onLogin({ id: Date.now(), email, name: fullName, role: 'Conseiller', missionLocale: detectedStructure.structure_name || 'National', avatar: 'UK', structure_id: detectedStructure.structure_id }); 
+        // --- CORRECTION DE L'ERREUR ICI ---
+        // On ajoute "|| undefined" pour convertir un potentiel "null" en "undefined"
+        onLogin({ 
+            id: Date.now(), 
+            email, 
+            name: fullName, 
+            role: 'Conseiller', 
+            missionLocale: detectedStructure.structure_name || 'National', 
+            avatar: 'UK', 
+            structure_id: detectedStructure.structure_id || undefined 
+        }); 
         return; 
     }
 
