@@ -25,9 +25,16 @@ export const ResourceList = ({ resources, isAdmin, onEdit, onDelete, onView }: R
   const [activeFilter, setActiveFilter] = useState<typeof FILTERS[number]['id']>('all');
 
   const stripHtml = (html: string) => {
-    const tmp = document.createElement("DIV");
-    tmp.innerHTML = html;
-    return tmp.textContent || tmp.innerText || "";
+    if (!html) return "";
+    try {
+      // DOMParser analyse la chaîne de caractères comme un document texte,
+      // ce qui empêche l'exécution de tout script malveillant (XSS).
+      const doc = new DOMParser().parseFromString(html, 'text/html');
+      return doc.body.textContent || "";
+    } catch (e) {
+      console.error("Erreur lors du nettoyage du HTML", e);
+      return ""; // En cas d'erreur, on préfère ne rien afficher plutôt que d'afficher du code brut
+    }
   };
 
   // Ajout d'un paramètre isGrid pour adapter la largeur de la carte
