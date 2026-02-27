@@ -1,6 +1,6 @@
 // src/components/dashboard/ResourceList.tsx
-import React, { useState } from 'react';
-import { AlignLeft, Pencil, Trash2, Calendar, ArrowRight, ChevronDown, Video, PlayCircle, Link as LinkIcon, Globe, Download, FileText } from 'lucide-react';
+import React, { useState, useMemo } from 'react';
+import { AlignLeft, Pencil, Trash2, Calendar, ChevronDown, Video, PlayCircle, Link as LinkIcon, Globe, Download, FileText } from 'lucide-react';
 import { Resource } from '@/types';
 import { Badge } from '@/components/ui/Badge';
 import { getYoutubeId } from '@/lib/utils';
@@ -14,59 +14,81 @@ interface ResourceListProps {
 }
 
 export const ResourceList = ({ resources, isAdmin, onEdit, onDelete, onView }: ResourceListProps) => {
-  const [visibleArticles, setVisibleArticles] = useState(6);
-  
-  const articles = resources.filter(r => r.type === 'text');
-  const videos = resources.filter(r => r.type === 'video');
-  const tools = resources.filter(r => r.type === 'link');
-  const files = resources.filter(r => ['file', 'pdf'].includes(r.type));
+  const [activeFilter, setActiveFilter] = useState<'all' | 'text' | 'video' | 'link' | 'file'>('all');
+  const [visibleCount, setVisibleCount] = useState(8);
 
-  // Fonction pour nettoyer le HTML dans l'aperçu (retirer les images, ne garder que du texte)
+  // Filtrage des ressources
+  const filteredResources = useMemo(() => {
+    if (activeFilter === 'all') return resources;
+    if (activeFilter === 'file') return resources.filter(r => ['file', 'pdf'].includes(r.type));
+    return resources.filter(r => r.type === activeFilter);
+  }, [resources, activeFilter]);
+
+  const displayedResources = filteredResources.slice(0, visibleCount);
+
   const stripHtml = (html: string) => {
-      const tmp = document.createElement("DIV");
-      tmp.innerHTML = html;
-      return tmp.textContent || tmp.innerText || "";
-  }
+    const tmp = document.createElement("DIV");
+    tmp.innerHTML = html;
+    return tmp.textContent || tmp.innerText || "";
+  };
 
   return (
-    <div className="space-y-12">
-        {/* ARTICLES */}
-        {articles.length > 0 && (
-            <section>
-                <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2"><AlignLeft className="text-amber-500"/> Articles & Tutoriels</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {articles.slice(0, visibleArticles).map(r => (
-                        <div key={r.id} className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col h-full hover:shadow-md transition-shadow relative group">
-                            <div className="flex justify-between items-start mb-2">
-                                <Badge color="green">{r.category}</Badge>
-                                {isAdmin && <div className="flex gap-1"><button onClick={() => onEdit(r)} className="text-slate-300 hover:text-[#116862] p-1"><Pencil size={14}/></button><button onClick={() => onDelete(r.id)} className="text-slate-300 hover:text-red-500 p-1"><Trash2 size={14}/></button></div>}
-                            </div>
-                            <h4 className="font-bold text-slate-800 mb-2">{r.title}</h4>
-                            
-                            {/* APERÇU DU CONTENU (TEXTE SEULEMENT) */}
-                            <div className="text-sm text-slate-600 line-clamp-3 mb-4 flex-1">
-                                {r.description ? stripHtml(r.description) : "Aucun contenu"}
-                            </div>
+    <div className="space-y-8">
+      {/* Barre de navigation par type */}
+      <div className="flex gap-2 p-1 bg-slate-100 rounded-lg overflow-x-auto">
+        {(['all', 'text', 'video', 'link', 'file'] as const).map((type) => (
+          <button
+            key={type}
+            onClick={() => { setActiveFilter(type); setVisibleCount(8); }}
+            className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${activeFilter === type ? 'bg-white text-[#116862] shadow-sm' : 'text-slate-600 hover:text-slate-900'}`}
+          >
+            {type.charAt(0).toUpperCase() + type.slice(1)}
+          </button>
+        ))}
+      </div>
 
-                            <div className="flex items-center justify-between mt-auto pt-4 border-t border-slate-50">
-                                <div className="text-xs text-slate-400 flex items-center gap-1"><Calendar size={12}/> {r.date || "Date inconnue"}</div>
-                                <button onClick={() => onView(r)} className="text-sm font-semibold text-amber-600 hover:text-amber-700 flex items-center gap-1">Lire <ArrowRight size={14}/></button>
-                            </div>
-                        </div>
-                    ))}
+      {/* Grille de ressources */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        {displayedResources.map(r => (
+          <div key={r.id} className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col h-full hover:shadow-md transition-all">
+            <div className="flex justify-between items-start mb-2">
+              <Badge color={r.type === 'video' ? 'red' : 'green'}>{r.category}</Badge>
+              {isAdmin && (
+                <div className="flex gap-1">
+                  <button onClick={() => onEdit(r)} className="text-slate-300 hover:text-[#116862] p-1"><Pencil size={14} /></button>
+                  <button onClick={() => onDelete(r.id)} className="text-slate-300 hover:text-red-500 p-1"><Trash2 size={14} /></button>
                 </div>
-                {articles.length > visibleArticles && <div className="flex justify-center mt-6"><button onClick={() => setVisibleArticles(prev => prev + 6)} className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-full text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors shadow-sm"><ChevronDown size={16}/> Voir plus d'articles</button></div>}
-            </section>
-        )}
+              )}
+            </div>
 
-        {/* VIDEOS */}
-        {videos.length > 0 && (<section><h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2"><Video className="text-red-500"/> Vidéothèque</h3><div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">{videos.map(r => { const videoId = r.file_url ? getYoutubeId(r.file_url) : null; const thumbnailUrl = videoId ? `https://img.youtube.com/vi/${videoId}/mqdefault.jpg` : null; return (<div key={r.id} className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden hover:shadow-md transition-shadow group relative"><div className="aspect-video bg-slate-100 relative group-hover:opacity-90 transition-opacity">{thumbnailUrl ? <img src={thumbnailUrl} alt={r.title} className="w-full h-full object-cover" /> : <div className="flex items-center justify-center h-full"><Video size={48} className="text-slate-300"/></div>}<a href={r.file_url} target="_blank" rel="noreferrer" className="absolute inset-0 flex items-center justify-center bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity"><PlayCircle size={48} className="text-white drop-shadow-lg"/></a>{isAdmin && <button onClick={() => onDelete(r.id)} className="absolute top-2 right-2 bg-white/90 p-1.5 rounded-full text-red-500 hover:bg-red-50 opacity-0 group-hover:opacity-100 transition-opacity"><Trash2 size={12}/></button>}</div><div className="p-3"><h4 className="font-bold text-sm text-slate-800 truncate">{r.title}</h4><span className="text-xs text-slate-500">{r.category}</span></div></div>); })}</div></section>)}
+            <h4 className="font-bold text-slate-800 mb-2 truncate">{r.title}</h4>
+            
+            {/* Rendu spécifique par type */}
+            <div className="flex-1">
+              {r.type === 'text' && <p className="text-sm text-slate-600 line-clamp-3">{stripHtml(r.description || "")}</p>}
+              {r.type === 'video' && (
+                <div className="aspect-video bg-slate-100 rounded-lg overflow-hidden relative group">
+                  <img src={`https://img.youtube.com/vi/${getYoutubeId(r.file_url || "")}/mqdefault.jpg`} alt={r.title} className="w-full h-full object-cover" />
+                  <a href={r.file_url} target="_blank" rel="noreferrer" className="absolute inset-0 flex items-center justify-center bg-black/20 opacity-0 group-hover:opacity-100"><PlayCircle size={32} className="text-white" /></a>
+                </div>
+              )}
+              {r.type === 'link' && <a href={r.file_url} target="_blank" className="text-indigo-600 text-sm flex items-center gap-2"><Globe size={16} /> Visiter le lien</a>}
+              {['file', 'pdf'].includes(r.type) && <a href={r.file_url} target="_blank" className="text-blue-600 text-sm flex items-center gap-2"><Download size={16} /> Télécharger</a>}
+            </div>
 
-        {/* OUTILS */}
-        {tools.length > 0 && (<section><h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2"><LinkIcon className="text-[#116862]"/> Outils</h3><div className="grid grid-cols-1 md:grid-cols-3 gap-4">{tools.map(r => <div key={r.id} className="bg-white p-3 rounded border flex items-center gap-3"><Globe size={20} className="text-[#116862]"/><a href={r.file_url} target="_blank" className="flex-1 truncate font-medium text-slate-700">{r.title}</a>{isAdmin && <button onClick={()=>onDelete(r.id)}><Trash2 size={14} className="text-slate-300 hover:text-red-500"/></button>}</div>)}</div></section>)}
+            <button onClick={() => onView(r)} className="mt-4 text-xs font-bold text-slate-500 hover:text-slate-900 uppercase tracking-wider">Voir détails</button>
+          </div>
+        ))}
+      </div>
 
-        {/* FICHIERS */}
-        {files.length > 0 && (<section><h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2"><Download className="text-blue-500"/> Fichiers</h3><div className="grid grid-cols-1 md:grid-cols-4 gap-4">{files.map(r => <div key={r.id} className="bg-white p-4 rounded border flex flex-col"><div className="flex justify-between"><FileText className="text-blue-500"/>{isAdmin && <button onClick={()=>onDelete(r.id)}><Trash2 size={14} className="text-slate-300 hover:text-red-500"/></button>}</div><h4 className="font-bold text-sm mt-2">{r.title}</h4><a href={r.file_url} target="_blank" className="mt-4 text-xs font-bold text-blue-600 flex items-center gap-1"><Download size={12}/> Télécharger</a></div>)}</div></section>)}
+      {/* Pagination */}
+      {filteredResources.length > visibleCount && (
+        <div className="flex justify-center pt-4">
+          <button onClick={() => setVisibleCount(prev => prev + 8)} className="flex items-center gap-2 px-6 py-2 bg-white border border-slate-200 rounded-full text-sm font-medium hover:bg-slate-50 shadow-sm">
+            <ChevronDown size={16} /> Voir plus
+          </button>
+        </div>
+      )}
     </div>
   );
 };
