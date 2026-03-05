@@ -31,6 +31,13 @@ export const LoginPage = ({ onLogin, onOpenLegal, allowedDomains }: LoginPagePro
     e.preventDefault();
     setLoading(true); setError('');
     
+    // CORRECTION : Vérification que supabase existe
+    if (!supabase) {
+        setError("Le service d'authentification n'est pas disponible.");
+        setLoading(false);
+        return;
+    }
+    
     try {
       const { data, error: authError } = await supabase.auth.signInWithPassword({ email, password });
       if (authError) throw authError;
@@ -61,7 +68,7 @@ export const LoginPage = ({ onLogin, onOpenLegal, allowedDomains }: LoginPagePro
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!detectedStructure) return;
+    if (!detectedStructure || !supabase) return; // Sécurité ajoutée ici aussi
     
     setLoading(true); setError(''); setInfoMessage('');
 
@@ -79,7 +86,6 @@ export const LoginPage = ({ onLogin, onOpenLegal, allowedDomains }: LoginPagePro
       
       if (signUpError) throw signUpError;
       
-      // Message clair pour l'utilisateur
       setInfoMessage("Compte créé avec succès ! Veuillez consulter vos emails pour valider votre inscription (vérifiez également vos courriers indésirables).");
       setMode('login');
     } catch (err: any) { 
@@ -126,7 +132,7 @@ export const LoginPage = ({ onLogin, onOpenLegal, allowedDomains }: LoginPagePro
           </button>
         </form>
       </div>
-      {/* Pied de page mis à jour */}
+
         <footer className="mt-8 text-center text-xs text-slate-400 space-y-2">
             <p>© 2026 CBE Sud 94 / Silveria</p>
             <div className="flex justify-center gap-4">
