@@ -95,7 +95,7 @@ export const LoginPage = ({ onLogin, onOpenLegal, allowedDomains }: LoginPagePro
         <h1 className="text-2xl font-bold text-[#116862] mb-2 text-center flex justify-center items-center gap-2">
             <img src="/logo.png" alt="Logo" className="h-8" />
         </h1>
-        <p className="text-center text-slate-500 mb-6 text-sm">Plateforme de ressources et prompts</p>
+        <p className="text-center text-slate-500 mb-6 text-sm">IAMESRESSOURCES : plateforme de ressources et prompts</p>
         
         <div className="flex justify-center gap-2 mb-6 bg-slate-100 p-1 rounded-lg">
           <button onClick={() => {setMode('login'); setError('');}} className={`flex-1 text-sm font-semibold px-4 py-2 rounded-md transition-all ${mode === 'login' ? 'bg-white text-[#116862] shadow-sm' : 'text-slate-500'}`}>Connexion</button>
