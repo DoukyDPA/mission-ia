@@ -19,7 +19,6 @@ export const LoginPage = ({ onLogin, onOpenLegal, allowedDomains }: LoginPagePro
   const [error, setError] = useState('');
   const [infoMessage, setInfoMessage] = useState('');
 
-  // Fonction pour trouver la structure basée sur l'email saisi
   const getDetectedStructure = () => {
     if (!email.includes('@')) return null;
     const domain = email.split('@')[1].toLowerCase();
@@ -32,19 +31,11 @@ export const LoginPage = ({ onLogin, onOpenLegal, allowedDomains }: LoginPagePro
     e.preventDefault();
     setLoading(true); setError('');
     
-    if (!supabase) {
-      // Simulation pour le mode démo (sans backend)
-      if (email.includes('@')) onLogin({ id: 999, email, name: 'Utilisateur Démo', role: 'Admin', missionLocale: 'National', avatar: 'AD' });
-      else setError("Email invalide.");
-      setLoading(false); return;
-    }
-
     try {
       const { data, error: authError } = await supabase.auth.signInWithPassword({ email, password });
       if (authError) throw authError;
       
       if (data.user) {
-        // On récupère le profil complet avec la structure
         const { data: profile } = await supabase
             .from('profiles')
             .select('*, structures(name)')
@@ -56,14 +47,13 @@ export const LoginPage = ({ onLogin, onOpenLegal, allowedDomains }: LoginPagePro
              email: data.user.email || '',
              name: profile?.full_name || email.split('@')[0],
              role: profile?.role || 'Conseiller',
-             missionLocale: profile?.structures?.name || 'National', // Nom de la structure
+             missionLocale: profile?.structures?.name || 'National',
              avatar: (profile?.full_name || 'U').substring(0, 2).toUpperCase(),
-             structure_id: profile?.structure_id // ID de la structure
+             structure_id: profile?.structure_id
         });
       }
     } catch (err: any) { 
         setError("Email ou mot de passe incorrect."); 
-        console.error(err);
     } finally { 
         setLoading(false); 
     }
@@ -71,45 +61,27 @@ export const LoginPage = ({ onLogin, onOpenLegal, allowedDomains }: LoginPagePro
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true); setError('');
+    if (!detectedStructure) return;
     
-    // Vérification stricte du domaine avant inscription
-    if (!detectedStructure) {
-        setError(`Le domaine @${email.split('@')[1] || '...'} n'est pas autorisé. Contactez votre administrateur.`);
-        setLoading(false);
-        return;
-    }
-
-    if (!supabase) { 
-        // --- CORRECTION DE L'ERREUR ICI ---
-        // On ajoute "|| undefined" pour convertir un potentiel "null" en "undefined"
-        onLogin({ 
-            id: Date.now(), 
-            email, 
-            name: fullName, 
-            role: 'Conseiller', 
-            missionLocale: detectedStructure.structure_name || 'National', 
-            avatar: 'UK', 
-            structure_id: detectedStructure.structure_id || undefined 
-        }); 
-        return; 
-    }
+    setLoading(true); setError(''); setInfoMessage('');
 
     try {
-      const { data, error: signUpError } = await supabase.auth.signUp({ 
+      const { error: signUpError } = await supabase.auth.signUp({ 
         email, 
         password,
         options: { 
-            // On envoie ces infos, mais c'est le TRIGGER SQL qui fera le vrai travail de liaison
             data: { 
                 full_name: fullName, 
                 structure_id: detectedStructure.structure_id 
             } 
         } 
       });
+      
       if (signUpError) throw signUpError;
-      setInfoMessage("Compte créé avec succès ! Vous pouvez maintenant vous connecter.");
-      setMode('login'); // Basculer vers la connexion
+      
+      // Message clair pour l'utilisateur
+      setInfoMessage("Compte créé avec succès ! Veuillez consulter vos emails pour valider votre inscription (vérifiez également vos courriers indésirables).");
+      setMode('login');
     } catch (err: any) { 
         setError(err.message); 
     } finally { 
@@ -140,13 +112,10 @@ export const LoginPage = ({ onLogin, onOpenLegal, allowedDomains }: LoginPagePro
           
           <div><label className="block text-xs font-bold text-slate-500 mb-1">Email professionnel</label><div className="relative"><Users className="absolute left-3 top-2.5 text-slate-400" size={18} /><input type="email" value={email} onChange={e => setEmail(e.target.value)} className="w-full pl-10 p-2.5 border rounded-lg outline-none focus:ring-2 focus:ring-[#116862]" required placeholder="nom@missionlocale.fr" /></div></div>
           
-          {/* Feedback visuel de la structure détectée */}
           {mode === 'register' && email.includes('@') && (
               <div className={`text-xs p-2 rounded flex items-center gap-2 ${detectedStructure ? 'text-emerald-600 bg-emerald-50' : 'text-amber-600 bg-amber-50'}`}>
                   <Building2 size={14}/>
-                  {detectedStructure 
-                    ? `Structure détectée : ${detectedStructure.structure_name || 'Structure identifiée'}` 
-                    : "Aucune structure associée à ce domaine d'email."}
+                  {detectedStructure ? `Structure détectée : ${detectedStructure.structure_name}` : "Domaine non autorisé."}
               </div>
           )}
 
@@ -156,21 +125,8 @@ export const LoginPage = ({ onLogin, onOpenLegal, allowedDomains }: LoginPagePro
               {loading ? 'Chargement...' : (mode === 'login' ? 'Se connecter' : "S'inscrire")}
           </button>
         </form>
-        
-        {mode === 'register' && (
-            <div className="mt-6 p-3 bg-slate-50 rounded-lg border border-slate-100">
-            <p className="text-xs font-bold text-slate-600 flex gap-2 mb-2"><Globe size={14}/> Domaines autorisés existants</p>
-            <div className="flex flex-wrap gap-2">
-                {allowedDomains.length > 0 ? allowedDomains.map(d => (
-                    <span key={d.id} className="text-[10px] bg-white border border-slate-200 px-2 py-1 rounded text-slate-500">
-                        {d.domain}
-                    </span>
-                )) : <span className="text-[10px] text-slate-400">Aucun domaine configuré</span>}
-            </div>
-            </div>
-        )}
       </div>
-      <footer className="mt-8 text-center text-xs text-slate-400 space-y-2"><p>© 2024 Réseau des Missions Locales</p><div className="flex justify-center gap-4"><button onClick={() => onOpenLegal('mentions')} className="hover:text-[#116862]">Mentions Légales</button><button onClick={() => onOpenLegal('privacy')} className="hover:text-[#116862]">Confidentialité</button></div></footer>
+      {/* ... footer ... */}
     </div>
   );
 };
