@@ -126,7 +126,14 @@ export const LoginPage = ({ onLogin, onOpenLegal, allowedDomains }: LoginPagePro
           </button>
         </form>
       </div>
-      {/* ... footer ... */}
+      {/* Pied de page mis à jour */}
+        <footer className="mt-8 text-center text-xs text-slate-400 space-y-2">
+            <p>© 2026 CBE Sud 94 / Silveria</p>
+            <div className="flex justify-center gap-4">
+                <button onClick={() => onOpenLegal('mentions')} className="hover:text-[#116862]">Mentions Légales</button>
+                <button onClick={() => onOpenLegal('privacy')} className="hover:text-[#116862]">Confidentialité</button>
+            </div>
+        </footer>
     </div>
   );
 };
