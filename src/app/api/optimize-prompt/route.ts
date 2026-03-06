@@ -1,5 +1,5 @@
 // src/app/api/optimize-prompt/route.ts
-import { NextResponse } from 'next/response';
+import { NextResponse } from 'next/server'; // <-- C'est ici que se trouvait l'erreur !
 
 export async function POST(req: Request) {
   try {
@@ -53,7 +53,7 @@ Ne fais pas de blabla, renvoie uniquement le prompt prêt à être utilisé.`;
         'Authorization': `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
-        model: 'mistral-small-latest', // ou mistral-large-latest selon votre budget
+        model: 'mistral-small-latest',
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: `Voici mon intention brute, optimise-la en un prompt expert : \n\n${intention}` }
