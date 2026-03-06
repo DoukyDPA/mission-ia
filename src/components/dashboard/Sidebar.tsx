@@ -1,11 +1,12 @@
+// src/components/dashboard/Sidebar.tsx
 import React from 'react';
-import { Menu, X, GitFork, BookOpen, Building2, Globe, Users, LogOut, ShieldCheck, FileText } from 'lucide-react'; // Ajout de FileText
+import { Menu, X, GitFork, BookOpen, Building2, Globe, Users, LogOut, ShieldCheck, FileText, Sparkles } from 'lucide-react'; // Ajout de Sparkles
 import { SidebarItem } from '@/components/ui/SidebarItem';
-import { User, Structure } from '@/types'; // Import de Structure
+import { User, Structure } from '@/types';
 
 interface SidebarProps {
   user: User;
-  userStructure: Structure | null; // <-- NOUVEAU : On passe la structure de l'utilisateur
+  userStructure: Structure | null;
   currentTab: string;
   setCurrentTab: (tab: string) => void;
   isAdmin: boolean;
@@ -30,6 +31,10 @@ export const Sidebar = ({ user, userStructure, currentTab, setCurrentTab, isAdmi
 
         <nav className="p-4 space-y-1">
            <SidebarItem icon={GitFork} label="Prompts" active={currentTab === 'prompts'} onClick={() => { setCurrentTab('prompts'); setIsMobileMenuOpen(false); }} />
+           
+           {/* --- NOUVEL ONGLET : ASSISTANT IA --- */}
+           <SidebarItem icon={Sparkles} label="Labo Prompts" active={currentTab === 'assistant'} onClick={() => { setCurrentTab('assistant'); setIsMobileMenuOpen(false); }} />
+           
            <SidebarItem icon={BookOpen} label="Ressources" active={currentTab === 'resources'} onClick={() => { setCurrentTab('resources'); setIsMobileMenuOpen(false); }} />
            
            {/* --- BOUTON CHARTE IA (Visible seulement si activé pour la structure) --- */}
