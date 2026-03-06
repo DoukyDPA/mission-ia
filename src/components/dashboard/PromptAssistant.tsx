@@ -146,6 +146,12 @@ export const PromptAssistant = () => {
         </div>
 
       </div>
+
+      {/* --- PHRASE D'ENCOURAGEMENT (Nouvel ajout) --- */}
+      <div className="text-center text-sm text-slate-500 italic mt-6">
+        N'hésitez pas à tester le prompt optimisé et à y ajouter votre propre "patte" pour que la réponse réponde parfaitement à votre attente.
+      </div>
+      
     </div>
   );
 };
