@@ -72,7 +72,7 @@ Précise les éléments à éviter (ex : pas de texte, pas de watermark, pas de 
 Règles de sortie :
 - Chaque section doit être séparée par un saut de ligne.
 - Chaque section commence par son titre suivi de ":".
-- Le texte doit être descriptif mais concis.
+- Le texte doit être descriptif mais très concis.
 - Ne pose pas de questions.
 - Ne donne aucune explication.
 - Retourne uniquement le prompt final structuré prêt à être utilisé`;
