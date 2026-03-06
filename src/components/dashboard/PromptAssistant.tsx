@@ -1,6 +1,6 @@
 // src/components/dashboard/PromptAssistant.tsx
 import React, { useState } from 'react';
-import { Sparkles, Copy, Loader2, Image as ImageIcon, FileText } from 'lucide-react';
+import { Sparkles, Copy, Loader2, Image as ImageIcon, FileText, Info } from 'lucide-react';
 
 export const PromptAssistant = () => {
   const [promptType, setPromptType] = useState<'text' | 'image'>('text');
@@ -41,17 +41,8 @@ export const PromptAssistant = () => {
 
   return (
     <div className="max-w-6xl mx-auto space-y-6">
-      <div className="flex justify-between items-center mb-6">
-        <div>
-          <h2 className="text-2xl font-bold text-slate-800">Le Laboratoire de Prompts</h2>
-          <p className="text-slate-500 text-sm mt-1">
-            Rédigez votre idée simplement, l'IA vous aide à la transformer en un prompt expert.
-          </p>
-        </div>
-      </div>
-
       {/* Sélecteur de mode */}
-      <div className="flex bg-slate-100 p-1 rounded-lg w-fit mb-6">
+      <div className="flex bg-slate-100 p-1 rounded-lg w-fit">
         <button 
           onClick={() => setPromptType('text')}
           className={`flex items-center gap-2 px-6 py-2 text-sm font-bold rounded-md transition-all ${promptType === 'text' ? 'bg-white shadow text-[#116862]' : 'text-slate-500 hover:text-slate-700'}`}
@@ -66,7 +57,34 @@ export const PromptAssistant = () => {
         </button>
       </div>
 
-      {/* Zone Pédagogique Côte à Côte */}
+      {/* --- RAPPEL PÉDAGOGIQUE DES RÈGLES --- */}
+      <div className="bg-[#116862]/10 border border-[#116862]/20 rounded-xl p-5 flex gap-4 text-slate-700 text-sm">
+        <Info className="text-[#116862] shrink-0 mt-0.5" size={24} />
+        <div>
+          <h3 className="font-bold text-[#116862] text-base mb-2">
+            {promptType === 'text' ? "Rappel : Les 5 clés d'un bon prompt texte" : "Rappel : Les clés d'un bon prompt image"}
+          </h3>
+          {promptType === 'text' ? (
+            <ul className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-2 list-disc pl-4">
+              <li><strong>Rôle :</strong> Donne un rôle à l'IA (Ex: "Tu es...")</li>
+              <li><strong>Contexte :</strong> Précise la situation (Ex: "Je cherche à...")</li>
+              <li><strong>Mission :</strong> Détaille la tâche (Ex: "Ta tâche est de...")</li>
+              <li><strong>Forme :</strong> Spécifie le format (Ex: "Sous forme de tableau...")</li>
+              <li><strong>Dialogue :</strong> Encourage l'échange (Ex: "Pose-moi des questions...")</li>
+            </ul>
+          ) : (
+            <ul className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-2 list-disc pl-4">
+              <li><strong>Composition :</strong> Décrivez la scène et le contexte</li>
+              <li><strong>Sujet :</strong> Rôle du sujet ou des personnages</li>
+              <li><strong>Style :</strong> Intention (photo réaliste, peinture, 3D...)</li>
+              <li><strong>Ambiance :</strong> Scénographie, lumière et couleurs</li>
+              <li><strong>Limites :</strong> Ce qu'il ne faut PAS faire (ex: pas de texte)</li>
+            </ul>
+          )}
+        </div>
+      </div>
+
+      {/* --- ZONE CÔTE À CÔTE --- */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         
         {/* Côté Humain */}
@@ -74,7 +92,7 @@ export const PromptAssistant = () => {
           <label className="text-sm font-bold text-slate-700 mb-2 flex items-center gap-2">
             1. Mon intention brute
           </label>
-          <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex-1 flex flex-col">
+          <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex-1 flex flex-col min-h-[300px]">
             <textarea 
               className="w-full flex-1 resize-none outline-none text-slate-700"
               placeholder={promptType === 'text' 
@@ -104,7 +122,7 @@ export const PromptAssistant = () => {
           <div className="bg-slate-50 p-4 rounded-xl border-2 border-dashed border-[#116862]/30 flex-1 relative flex flex-col min-h-[300px]">
             {optimizedPrompt ? (
               <>
-                <div className="text-sm text-slate-700 whitespace-pre-wrap flex-1 mb-10">
+                <div className="text-sm text-slate-700 whitespace-pre-wrap flex-1 mb-10 overflow-y-auto">
                   {optimizedPrompt}
                 </div>
                 <button 
