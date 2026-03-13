@@ -1,17 +1,8 @@
 import React from 'react';
 import { 
-  Menu, 
-  X, 
-  GitFork, 
-  BookOpen, 
-  Building2, 
-  Globe, 
-  Users, 
-  LogOut, 
-  ShieldCheck, 
-  FileText, 
-  Sparkles,
-  Home as HomeIcon
+  Menu, X, GitFork, BookOpen, Building2, Globe, Users, 
+  LogOut, ShieldCheck, FileText, Sparkles, Home as HomeIcon,
+  MessageSquare, HelpCircle // Nouveaux imports
 } from 'lucide-react';
 import { SidebarItem } from '@/components/ui/SidebarItem';
 import { User, Structure } from '@/types';
@@ -34,7 +25,7 @@ export const Sidebar = ({ user, userStructure, currentTab, setCurrentTab, isAdmi
     <div className="flex flex-col h-full justify-between">
       <div>
         <div className="p-6 border-b border-slate-100 hidden md:block">
-           <div className="flex items-center gap-2 text-[#116862] font-extrabold text-xl tracking-tighter">
+           <div className="flex items-center gap-2 text-[#116862] font-extrabold text-xl tracking-tighter uppercase">
                IAMESRESSOURCES
            </div>
            <div className="mt-4 p-2 bg-[#116862]/10 rounded text-xs font-bold text-[#116862] truncate">
@@ -50,6 +41,12 @@ export const Sidebar = ({ user, userStructure, currentTab, setCurrentTab, isAdmi
            <SidebarItem icon={Sparkles} label="Labo Prompts" active={currentTab === 'assistant'} onClick={() => { setCurrentTab('assistant'); setIsMobileMenuOpen(false); }} />
            
            <SidebarItem icon={BookOpen} label="Ressources & Veille" active={currentTab === 'resources'} onClick={() => { setCurrentTab('resources'); setIsMobileMenuOpen(false); }} />
+
+           {/* --- NOUVEAUX ONGLETS FORUM & FAQ --- */}
+           <div className="mt-6 mb-2 px-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest pt-4 border-t border-slate-100">Entraide</div>
+           
+           <SidebarItem icon={MessageSquare} label="Forum" active={currentTab === 'forum'} onClick={() => { setCurrentTab('forum'); setIsMobileMenuOpen(false); }} />
+           <SidebarItem icon={HelpCircle} label="FAQ Globale" active={currentTab === 'faq'} onClick={() => { setCurrentTab('faq'); setIsMobileMenuOpen(false); }} />
            
            {userStructure?.has_charter && userStructure?.charter_url && (
              <div className="mt-4 mb-2">
@@ -67,7 +64,7 @@ export const Sidebar = ({ user, userStructure, currentTab, setCurrentTab, isAdmi
 
            {isAdmin && (
              <>
-               <div className="mt-6 mb-2 px-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Administration</div>
+               <div className="mt-6 mb-2 px-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest pt-4 border-t border-slate-100">Administration</div>
                <SidebarItem icon={Building2} label="Structures" active={currentTab === 'structures'} onClick={() => { setCurrentTab('structures'); setIsMobileMenuOpen(false); }} />
                <SidebarItem icon={Globe} label="Domaines" active={currentTab === 'domains'} onClick={() => { setCurrentTab('domains'); setIsMobileMenuOpen(false); }} />
                <SidebarItem icon={Users} label="Utilisateurs" active={currentTab === 'users'} onClick={() => { setCurrentTab('users'); setIsMobileMenuOpen(false); }} />
