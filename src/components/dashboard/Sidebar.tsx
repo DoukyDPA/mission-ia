@@ -1,6 +1,18 @@
-// src/components/dashboard/Sidebar.tsx
 import React from 'react';
-import { Menu, X, GitFork, BookOpen, Building2, Globe, Users, LogOut, ShieldCheck, FileText, Sparkles } from 'lucide-react'; // Ajout de Sparkles
+import { 
+  Menu, 
+  X, 
+  GitFork, 
+  BookOpen, 
+  Building2, 
+  Globe, 
+  Users, 
+  LogOut, 
+  ShieldCheck, 
+  FileText, 
+  Sparkles,
+  Home as HomeIcon // Ajout de l'icône Home
+} from 'lucide-react';
 import { SidebarItem } from '@/components/ui/SidebarItem';
 import { User, Structure } from '@/types';
 
@@ -30,14 +42,17 @@ export const Sidebar = ({ user, userStructure, currentTab, setCurrentTab, isAdmi
         </div>
 
         <nav className="p-4 space-y-1">
-           <SidebarItem icon={GitFork} label="Prompts" active={currentTab === 'prompts'} onClick={() => { setCurrentTab('prompts'); setIsMobileMenuOpen(false); }} />
+           {/* NOUVEL ONGLET : ACCUEIL */}
+           <SidebarItem icon={HomeIcon} label="Accueil" active={currentTab === 'home'} onClick={() => { setCurrentTab('home'); setIsMobileMenuOpen(false); }} />
+
+           {/* SECTION RENOMMÉE : PROMPTOTHÈQUE */}
+           <SidebarItem icon={GitFork} label="Promptothèque" active={currentTab === 'prompts'} onClick={() => { setCurrentTab('prompts'); setIsMobileMenuOpen(false); }} />
            
-           {/* --- NOUVEL ONGLET : ASSISTANT IA --- */}
            <SidebarItem icon={Sparkles} label="Labo Prompts" active={currentTab === 'assistant'} onClick={() => { setCurrentTab('assistant'); setIsMobileMenuOpen(false); }} />
            
            <SidebarItem icon={BookOpen} label="Ressources" active={currentTab === 'resources'} onClick={() => { setCurrentTab('resources'); setIsMobileMenuOpen(false); }} />
            
-           {/* --- BOUTON CHARTE IA (Visible seulement si activé pour la structure) --- */}
+           {/* BOUTON CHARTE IA */}
            {userStructure?.has_charter && userStructure?.charter_url && (
              <div className="mt-4 mb-2">
                 <a 
@@ -66,17 +81,30 @@ export const Sidebar = ({ user, userStructure, currentTab, setCurrentTab, isAdmi
         <div className="px-4 mt-6">
             <p className="text-[10px] text-slate-500 text-center mb-2 leading-tight">Téléchargez gratuitement notre "anonymiseur" de CV pour utiliser l'IA en toute discrétion</p>
             <a href="https://solutions.silveria.fr/" target="_blank" rel="noopener noreferrer" className="flex justify-center hover:opacity-80 transition-opacity">
-                <img src="/logo-anonymiseur.png" alt="Anonymiseur Silveria" className="h-auto w-40 md:w-40 w-48 object-contain" />
+                <img src="/logo-anonymiseur.png" alt="Anonymiseur Silveria" className="h-auto w-40 object-contain" />
             </a>
         </div>
       </div>
 
       <div className="p-4 border-t border-slate-100 bg-slate-50">
-        <div className="mb-2 px-2 hidden md:block"><p className="text-sm font-bold text-slate-700 truncate">{user.name}</p><p className="text-xs text-slate-500 truncate flex items-center gap-1">{user.role} {isAdmin && <ShieldCheck size={12} className="text-[#116862]"/>}</p></div>
-        <button onClick={onLogout} className="flex items-center gap-2 text-slate-500 hover:text-red-500 mb-3 ml-2 text-sm w-full md:w-auto justify-center md:justify-start p-2 md:p-0 border md:border-0 rounded"><LogOut size={16}/> Déconnexion</button>
-        <div className="hidden md:flex justify-center gap-3 text-[10px] text-slate-400 border-t border-slate-200 pt-3"><button onClick={() => onOpenLegal('mentions')} className="hover:text-[#116862]">Mentions Légales</button><span>•</span><button onClick={() => onOpenLegal('privacy')} className="hover:text-[#116862]">Confidentialité</button></div>
+        <div className="mb-2 px-2 hidden md:block">
+            <p className="text-sm font-bold text-slate-700 truncate">{user.name}</p>
+            <p className="text-xs text-slate-500 truncate flex items-center gap-1">
+                {user.role} {isAdmin && <ShieldCheck size={12} className="text-[#116862]"/>}
+            </p>
+        </div>
+        <button onClick={onLogout} className="flex items-center gap-2 text-slate-500 hover:text-red-500 mb-3 ml-2 text-sm w-full md:w-auto justify-center md:justify-start p-2 md:p-0 border md:border-0 rounded">
+            <LogOut size={16}/> Déconnexion
+        </button>
+        <div className="hidden md:flex justify-center gap-3 text-[10px] text-slate-400 border-t border-slate-200 pt-3">
+            <button onClick={() => onOpenLegal('mentions')} className="hover:text-[#116862]">Mentions Légales</button>
+            <span>•</span>
+            <button onClick={() => onOpenLegal('privacy')} className="hover:text-[#116862]">Confidentialité</button>
+        </div>
         <div className="mt-4 pt-2 border-t border-slate-200 text-center hidden md:block">
-           <div className="flex items-center justify-center gap-2 mb-1"><img src="/logo-silveria.png" alt="Silveria" className="h-6 w-auto object-contain" /></div>
+           <div className="flex items-center justify-center gap-2 mb-1">
+               <img src="/logo-silveria.png" alt="Silveria" className="h-6 w-auto object-contain" />
+           </div>
            <p className="text-[9px] text-slate-400 font-bold">Conçu et mis à jour par Silveria</p>
         </div>
       </div>
@@ -102,7 +130,9 @@ export const Sidebar = ({ user, userStructure, currentTab, setCurrentTab, isAdmi
             </div>
         </div>
       )}
-      <aside className="w-64 bg-white border-r border-slate-200 hidden md:flex flex-col z-10 justify-between sticky top-0 h-screen"><MenuContent /></aside>
+      <aside className="w-64 bg-white border-r border-slate-200 hidden md:flex flex-col z-10 justify-between sticky top-0 h-screen">
+        <MenuContent />
+      </aside>
     </>
   );
 };
