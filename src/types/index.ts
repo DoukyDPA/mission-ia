@@ -3,7 +3,6 @@ export interface Structure {
   id: string | number;
   name: string;
   city: string;
-  // Ajoutez juste ces deux lignes :
   has_charter?: boolean;
   charter_url?: string;
 }
@@ -16,3 +15,22 @@ export interface Prompt {
   user_id?: string | number; 
 }
 export interface AllowedDomain { id: string | number; domain: string; structure_id?: string | number | null; structure_name?: string; }
+
+// --- NOUVEAUX TYPES ---
+export interface FAQItem {
+  id: string | number;
+  question: string;
+  answer: string;
+  category?: string;
+}
+
+export interface ForumPost {
+  id: string | number;
+  title: string;
+  content: string;
+  author_name: string;
+  author_avatar: string;
+  structure_id: string | number;
+  created_at: string;
+  replies_count: number;
+}
