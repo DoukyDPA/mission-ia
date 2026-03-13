@@ -13,6 +13,8 @@ import { ResourceList } from './ResourceList';
 import { AdminPanel } from './AdminPanel';
 import { PromptAssistant } from './PromptAssistant';
 import { Home } from './Home';
+import { FAQ } from './FAQ';
+import { Forum } from './Forum';
 
 // --- CONFIGURATION ÉDITEUR RICHE (React-Quill-New) ---
 import 'react-quill-new/dist/quill.snow.css'; 
@@ -48,7 +50,6 @@ interface DashboardProps {
 }
 
 export const Dashboard = ({ user, onLogout, onOpenLegal, allowedDomains, onAllowedDomainsChange }: DashboardProps) => {
-  // L'application s'ouvre sur l'onglet 'home'
   const [currentTab, setCurrentTab] = useState('home');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   
@@ -100,9 +101,7 @@ export const Dashboard = ({ user, onLogout, onOpenLegal, allowedDomains, onAllow
   
   const cleanHtmlContent = (html: string) => {
       if (!html) return "";
-      return html
-          .replace(/style="[^"]*"/g, "") 
-          .replace(/&nbsp;/g, " ");       
+      return html.replace(/style="[^"]*"/g, "").replace(/&nbsp;/g, " ");       
   };
 
   // --- CHARGEMENT DES DONNÉES ---
@@ -116,23 +115,16 @@ export const Dashboard = ({ user, onLogout, onOpenLegal, allowedDomains, onAllow
             pData.forEach((p: any) => { if (p.tags && Array.isArray(p.tags)) p.tags.forEach((t: string) => usedTags.add(t)); });
             setAvailableCategories(Array.from(usedTags).sort());
             
-            // CORRECTION TYPESCRIPT : on mappe toutes les propriétés exigées par l'interface Prompt
+            // Correction TypeScript : mappage complet du type Prompt
             setPrompts(pData.map((p: any) => ({
-                id: p.id, 
-                title: p.title, 
-                content: p.content, 
+                id: p.id, title: p.title, content: p.content, 
                 author: p.profiles?.full_name || 'Inconnu', 
                 role: p.profiles?.role || 'Membre',
                 avatar: (p.profiles?.full_name || 'U').substring(0,2).toUpperCase(), 
                 missionLocale: p.structures?.name || 'National',
                 date: new Date(p.created_at).toLocaleDateString(), 
-                tags: p.tags || [], 
-                likes: p.likes_count || 0, 
-                forks: 0, 
-                isFork: p.is_fork || false,
-                parentId: p.parent_id, 
-                parentAuthor: p.parent_id ? 'Autre' : undefined, 
-                user_id: p.user_id
+                tags: p.tags || [], likes: p.likes_count || 0, forks: 0, isFork: p.is_fork || false,
+                parentId: p.parent_id, parentAuthor: p.parent_id ? 'Autre' : undefined, user_id: p.user_id
             })));
         }
         
@@ -156,7 +148,7 @@ export const Dashboard = ({ user, onLogout, onOpenLegal, allowedDomains, onAllow
 
   const copyPrompt = (content: string) => { navigator.clipboard.writeText(content); alert("Prompt copié !"); };
   
-  // Utilisation de votre fonction deleteItem d'origine
+  // Correction TypeScript : Vérification de supabase
   const deleteItem = async (table: string, id: string|number) => { if(!confirm("Supprimer ?")) return; if(supabase) { await supabase.from(table).delete().eq('id', id); await refreshData(); } };
   
   const prepareCreatePrompt = () => { setModalMode('prompt'); setEditingPromptId(null); setPromptFormTitle(''); setPromptFormContent(''); setPromptFormTag(availableCategories[0]); setParentPromptId(null); setIsModalOpen(true); }
@@ -226,17 +218,20 @@ export const Dashboard = ({ user, onLogout, onOpenLegal, allowedDomains, onAllow
       
       <main className="flex-1 p-8">
          {/* En-tête avec titre et bouton Ajouter */}
-         {['home', 'prompts', 'resources', 'structures', 'domains', 'assistant'].includes(currentTab) && (
+         {['home', 'prompts', 'resources', 'structures', 'domains', 'assistant', 'forum', 'faq'].includes(currentTab) && (
              <div className="flex justify-between items-center mb-8">
-                <h1 className="text-2xl font-bold">
+                <h1 className="text-2xl font-bold uppercase tracking-tight text-slate-800">
                     {currentTab === 'home' ? 'Guide d’utilisation' : 
                      currentTab === 'prompts' ? 'Promptothèque' : 
                      currentTab === 'assistant' ? 'Laboratoire de Prompts' : 
-                     currentTab === 'resources' ? 'Centre de Ressources' : 'Administration'}
+                     currentTab === 'resources' ? 'Ressources & Veille' : 
+                     currentTab === 'forum' ? 'Forum' :
+                     currentTab === 'faq' ? 'Foire aux questions' :
+                     'Administration'}
                 </h1>
                 
-                {/* On n'affiche le bouton Ajouter que si on n'est PAS sur le Labo ou Accueil */}
-                {!['home', 'assistant'].includes(currentTab) && (
+                {/* Bouton d'ajout générique (hors forum/faq) */}
+                {!['home', 'assistant', 'forum', 'faq'].includes(currentTab) && (
                     <button onClick={() => { 
                        if (currentTab === 'prompts') prepareCreatePrompt();
                        else if (currentTab === 'resources') prepareCreateResource();
@@ -244,6 +239,13 @@ export const Dashboard = ({ user, onLogout, onOpenLegal, allowedDomains, onAllow
                        else if (currentTab === 'domains') { setModalMode('domain'); setDomainFormValue(''); setIsModalOpen(true); }
                     }} className="bg-[#116862] text-white px-4 py-2 rounded-lg flex items-center gap-2 text-sm font-bold shadow-md hover:bg-[#0e524d]">
                         <Plus size={18} /> Ajouter
+                    </button>
+                )}
+
+                {/* Bouton d'ajout pour la FAQ (Admin uniquement) */}
+                {currentTab === 'faq' && isAdmin && (
+                    <button onClick={() => { setModalMode('faq'); setIsModalOpen(true); }} className="bg-[#116862] text-white px-4 py-2 rounded-lg flex items-center gap-2 text-sm font-bold shadow-md hover:bg-[#0e524d]">
+                        <Plus size={18} /> Ajouter une Q/R
                     </button>
                 )}
              </div>
@@ -254,6 +256,11 @@ export const Dashboard = ({ user, onLogout, onOpenLegal, allowedDomains, onAllow
          {currentTab === 'prompts' && <PromptList prompts={prompts} user={user} isAdmin={isAdmin} categories={availableCategories} selectedCategory={selectedCategory} setSelectedCategory={setSelectedCategory} onCopy={copyPrompt} onEdit={prepareEditPrompt} onDelete={(id) => deleteItem('prompts', id)} onFork={prepareForkPrompt} />}
          {currentTab === 'assistant' && <PromptAssistant />}
          {currentTab === 'resources' && <ResourceList resources={resources} isAdmin={isAdmin} onEdit={prepareEditResource} onDelete={(id) => deleteItem('resources', id)} onView={setViewingResource} />}
+         
+         {/* Nouveaux Onglets */}
+         {currentTab === 'forum' && <Forum user={user} />}
+         {currentTab === 'faq' && <FAQ isAdmin={isAdmin} />}
+
          {(currentTab === 'structures' || currentTab === 'users' || currentTab === 'domains') && <AdminPanel currentTab={currentTab} structures={structures} users={adminUsers} domains={allowedDomains} onAdd={() => { if(currentTab==='structures') prepareCreateStructure(); else if(currentTab==='domains') {setModalMode('domain'); setIsModalOpen(true);} }} onDelete={deleteItem} onEditUser={prepareEditUser} onEditStructure={prepareEditStructure} onInviteUser={prepareInviteUser} />}
       </main>
 
@@ -273,7 +280,7 @@ export const Dashboard = ({ user, onLogout, onOpenLegal, allowedDomains, onAllow
           </div>
       </Modal>
 
-      {/* MODALE D'ÉDITION - VOS FORMULAIRES ONT ÉTÉ INTÉGRALEMENT RESTAURÉS */}
+      {/* MODALE D'ÉDITION ET D'AJOUT (FORMULAIRES COMPLETS) */}
       {isModalOpen && (
          <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
             <div className="bg-white rounded-xl shadow-xl w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto">
@@ -284,6 +291,7 @@ export const Dashboard = ({ user, onLogout, onOpenLegal, allowedDomains, onAllow
                   else if(modalMode === 'structure') handleSubmitStructure();
                   else if(modalMode === 'domain') handleCreateDomain();
                   else if(modalMode === 'user') handleSubmitUser();
+                  // Le handler FAQ/Forum sera à implémenter plus tard
                }} className="space-y-4">
                   
                   {/* --- CHAMPS PROMPT --- */}
@@ -345,6 +353,10 @@ export const Dashboard = ({ user, onLogout, onOpenLegal, allowedDomains, onAllow
                     </>
                   )}
                   
+                  {modalMode === 'faq' && (
+                      <p className="text-sm text-slate-500">Formulaire d'ajout de FAQ à venir...</p>
+                  )}
+
                   <button className="bg-[#116862] text-white px-4 py-2 rounded font-bold w-full">Valider</button>
                </form>
             </div>
