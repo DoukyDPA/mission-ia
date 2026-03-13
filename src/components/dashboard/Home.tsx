@@ -46,9 +46,9 @@ export const Home = () => {
         <div>
           <h3 className="font-bold text-[#116862] mb-1">Sécurité et RGPD</h3>
           <p className="text-sm text-[#116862]/80 leading-relaxed">
-            <strong>Règle d'or :</strong> Ne saisissez jamais de données nominatives (noms, téléphones, adresses) 
+            **Règle d'or :** Ne saisissez jamais de données nominatives (noms, téléphones, adresses) 
             concernant les jeunes dans les outils d'IA. Pour les CV, utilisez systématiquement notre 
-            <strong> anonymiseur</strong> disponible dans le menu latéral.
+            **anonymiseur** disponible dans le menu latéral.
           </p>
         </div>
       </div>
