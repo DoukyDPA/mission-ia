@@ -115,7 +115,6 @@ export const Dashboard = ({ user, onLogout, onOpenLegal, allowedDomains, onAllow
             pData.forEach((p: any) => { if (p.tags && Array.isArray(p.tags)) p.tags.forEach((t: string) => usedTags.add(t)); });
             setAvailableCategories(Array.from(usedTags).sort());
             
-            // Correction TypeScript : mappage complet du type Prompt
             setPrompts(pData.map((p: any) => ({
                 id: p.id, title: p.title, content: p.content, 
                 author: p.profiles?.full_name || 'Inconnu', 
@@ -147,8 +146,6 @@ export const Dashboard = ({ user, onLogout, onOpenLegal, allowedDomains, onAllow
   useEffect(() => { if (!supabase) { setPrompts(MOCK_PROMPTS); setStructures(MOCK_STRUCTURES); onAllowedDomainsChange([]); } else { refreshData(); } }, [refreshData, onAllowedDomainsChange]);
 
   const copyPrompt = (content: string) => { navigator.clipboard.writeText(content); alert("Prompt copié !"); };
-  
-  // Correction TypeScript : Vérification de supabase
   const deleteItem = async (table: string, id: string|number) => { if(!confirm("Supprimer ?")) return; if(supabase) { await supabase.from(table).delete().eq('id', id); await refreshData(); } };
   
   const prepareCreatePrompt = () => { setModalMode('prompt'); setEditingPromptId(null); setPromptFormTitle(''); setPromptFormContent(''); setPromptFormTag(availableCategories[0]); setParentPromptId(null); setIsModalOpen(true); }
@@ -216,13 +213,12 @@ export const Dashboard = ({ user, onLogout, onOpenLegal, allowedDomains, onAllow
     <div className="min-h-screen bg-slate-50 font-sans text-slate-900 flex flex-col md:flex-row">
       <Sidebar user={user} userStructure={userStructure} currentTab={currentTab} setCurrentTab={setCurrentTab} isAdmin={isAdmin} onLogout={onLogout} onOpenLegal={onOpenLegal} isMobileMenuOpen={isMobileMenuOpen} setIsMobileMenuOpen={setIsMobileMenuOpen} />
       
-      <main className="flex-1 p-8">
-         {/* En-tête avec titre et bouton Ajouter */}
-         {['home', 'prompts', 'resources', 'structures', 'domains', 'assistant', 'forum', 'faq'].includes(currentTab) && (
+      <main className="flex-1 p-4 md:p-8">
+         {/* EN-TÊTE MODIFIÉ : On n'affiche plus l'en-tête générique pour l'onglet 'home' */}
+         {['prompts', 'resources', 'structures', 'domains', 'assistant', 'forum', 'faq'].includes(currentTab) && (
              <div className="flex justify-between items-center mb-8">
                 <h1 className="text-2xl font-bold uppercase tracking-tight text-slate-800">
-                    {currentTab === 'home' ? 'Guide d’utilisation' : 
-                     currentTab === 'prompts' ? 'Promptothèque' : 
+                    {currentTab === 'prompts' ? 'Promptothèque' : 
                      currentTab === 'assistant' ? 'Laboratoire de Prompts' : 
                      currentTab === 'resources' ? 'Ressources & Veille' : 
                      currentTab === 'forum' ? 'Forum' :
@@ -231,7 +227,7 @@ export const Dashboard = ({ user, onLogout, onOpenLegal, allowedDomains, onAllow
                 </h1>
                 
                 {/* Bouton d'ajout générique (hors forum/faq) */}
-                {!['home', 'assistant', 'forum', 'faq'].includes(currentTab) && (
+                {!['assistant', 'forum', 'faq'].includes(currentTab) && (
                     <button onClick={() => { 
                        if (currentTab === 'prompts') prepareCreatePrompt();
                        else if (currentTab === 'resources') prepareCreateResource();
