@@ -1,3 +1,4 @@
+// src/components/dashboard/Sidebar.tsx
 import React from 'react';
 import { 
   Menu, 
@@ -11,7 +12,7 @@ import {
   ShieldCheck, 
   FileText, 
   Sparkles,
-  Home as HomeIcon // Ajout de l'icône Home
+  Home as HomeIcon 
 } from 'lucide-react';
 import { SidebarItem } from '@/components/ui/SidebarItem';
 import { User, Structure } from '@/types';
@@ -42,17 +43,17 @@ export const Sidebar = ({ user, userStructure, currentTab, setCurrentTab, isAdmi
         </div>
 
         <nav className="p-4 space-y-1">
-           {/* NOUVEL ONGLET : ACCUEIL */}
+           {/* ACCUEIL - Nouvel onglet */}
            <SidebarItem icon={HomeIcon} label="Accueil" active={currentTab === 'home'} onClick={() => { setCurrentTab('home'); setIsMobileMenuOpen(false); }} />
 
-           {/* SECTION RENOMMÉE : PROMPTOTHÈQUE */}
+           {/* PROMPTOTHÈQUE - Renommé depuis Prompts */}
            <SidebarItem icon={GitFork} label="Promptothèque" active={currentTab === 'prompts'} onClick={() => { setCurrentTab('prompts'); setIsMobileMenuOpen(false); }} />
            
            <SidebarItem icon={Sparkles} label="Labo Prompts" active={currentTab === 'assistant'} onClick={() => { setCurrentTab('assistant'); setIsMobileMenuOpen(false); }} />
            
            <SidebarItem icon={BookOpen} label="Ressources" active={currentTab === 'resources'} onClick={() => { setCurrentTab('resources'); setIsMobileMenuOpen(false); }} />
            
-           {/* BOUTON CHARTE IA */}
+           {/* CHARTE IA */}
            {userStructure?.has_charter && userStructure?.charter_url && (
              <div className="mt-4 mb-2">
                 <a 
@@ -79,7 +80,7 @@ export const Sidebar = ({ user, userStructure, currentTab, setCurrentTab, isAdmi
 
         {/* PROMO ANONYMISEUR */}
         <div className="px-4 mt-6">
-            <p className="text-[10px] text-slate-500 text-center mb-2 leading-tight">Téléchargez gratuitement notre "anonymiseur" de CV pour utiliser l'IA en toute discrétion</p>
+            <p className="text-[10px] text-slate-500 text-center mb-2 leading-tight text-balance">Téléchargez notre "anonymiseur" de CV pour utiliser l'IA en toute discrétion</p>
             <a href="https://solutions.silveria.fr/" target="_blank" rel="noopener noreferrer" className="flex justify-center hover:opacity-80 transition-opacity">
                 <img src="/logo-anonymiseur.png" alt="Anonymiseur Silveria" className="h-auto w-40 object-contain" />
             </a>
