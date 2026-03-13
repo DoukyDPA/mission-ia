@@ -250,7 +250,7 @@ export const Dashboard = ({ user, onLogout, onOpenLegal, allowedDomains, onAllow
          )}
 
          {/* Contenu des onglets géré par des composants dédiés */}
-         {currentTab === 'home' && <Home />}
+         {currentTab === 'home' && <Home onNavigate={setCurrentTab} />}
          {currentTab === 'prompts' && <PromptList prompts={prompts} user={user} isAdmin={isAdmin} categories={availableCategories} selectedCategory={selectedCategory} setSelectedCategory={setSelectedCategory} onCopy={copyPrompt} onEdit={prepareEditPrompt} onDelete={(id) => deleteItem('prompts', id)} onFork={prepareForkPrompt} />}
          {currentTab === 'assistant' && <PromptAssistant />}
          {currentTab === 'resources' && <ResourceList resources={resources} isAdmin={isAdmin} onEdit={prepareEditResource} onDelete={(id) => deleteItem('resources', id)} onView={setViewingResource} />}
