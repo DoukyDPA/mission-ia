@@ -58,8 +58,6 @@ export const Dashboard = ({ user, onLogout, onOpenLegal, allowedDomains, onAllow
   const [resFormContent, setResFormContent] = useState(''); 
   const [resFormTitle, setResFormTitle] = useState('');
   const [resFormCategory, setResFormCategory] = useState('Formation');
-  
-  // NOUVEAUX ÉTATS POUR LA RESSOURCE
   const [resFormTags, setResFormTags] = useState('');
   const [resFormImageUrl, setResFormImageUrl] = useState('');
 
@@ -103,7 +101,6 @@ export const Dashboard = ({ user, onLogout, onOpenLegal, allowedDomains, onAllow
         }
         
         const { data: rData } = await supabase.from('resources').select('*').order('created_at', { ascending: false });
-        // MAPPAGE DE L'IMAGE ET DES TAGS DE LA BDD
         if (rData) setResources(rData.map((r: any) => ({ 
             ...r, type: r.file_type || 'file', tags: r.tags || [], image_url: r.image_url || null,
             date: new Date(r.created_at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' }) 
@@ -131,7 +128,6 @@ export const Dashboard = ({ user, onLogout, onOpenLegal, allowedDomains, onAllow
   const prepareForkPrompt = (original: Prompt) => { setModalMode('prompt'); setEditingPromptId(null); setPromptFormTitle(`Variante : ${original.title}`); setPromptFormContent(original.content); setPromptFormTag(original.tags[0] || availableCategories[0] || 'Général'); setParentPromptId(original.id); setIsCreatingNewTag(false); setIsModalOpen(true); }
   const prepareEditPrompt = (original: Prompt) => { setModalMode('prompt'); setEditingPromptId(original.id); setPromptFormTitle(original.title); setPromptFormContent(original.content); setPromptFormTag(original.tags[0] || availableCategories[0] || 'Général'); setParentPromptId(null); setIsCreatingNewTag(false); setIsModalOpen(true); }
   
-  // RESET DES NOUVEAUX CHAMPS RESSOURCES
   const prepareCreateResource = () => { setModalMode('resource'); setEditingResourceId(null); setResFormTitle(''); setResFormCategory('Veille'); setResFormTags(''); setResFormImageUrl(''); setResFormType('file'); setResFormContent(''); setSelectedFile(null); setIsModalOpen(true); }
   const prepareEditResource = (r: Resource) => { setModalMode('resource'); setEditingResourceId(r.id); setResFormTitle(r.title); setResFormCategory(r.category); setResFormTags(r.tags?.join(', ') || ''); setResFormImageUrl(r.image_url || ''); setResFormType(r.type as any); setResFormContent(r.type === 'text' ? (r.description || '') : (r.file_url || '')); setSelectedFile(null); setIsModalOpen(true); }
   
@@ -159,12 +155,11 @@ export const Dashboard = ({ user, onLogout, onOpenLegal, allowedDomains, onAllow
         if (resFormType === 'file' && selectedFile) { const fileName = `${user.id}/${Date.now()}.${selectedFile.name.split('.').pop()}`; await supabase.storage.from('documents').upload(fileName, selectedFile); finalUrl = supabase.storage.from('documents').getPublicUrl(fileName).data.publicUrl || ''; }
         else if (resFormType === 'text') { finalUrl = ''; }
         
-        // CONVERSION DU CHAMP TEXTE EN TABLEAU DE MOTS-CLÉS
         const tagsArray = resFormTags.split(',').map(t => t.trim()).filter(Boolean);
 
         const payload = { 
             title: resFormTitle, file_type: resFormType, category: resFormCategory, 
-            tags: tagsArray, image_url: resFormImageUrl || null, // NOUVEAUX CHAMPS
+            tags: tagsArray, image_url: resFormImageUrl || null,
             access_scope: 'global', target_structure_id: null, file_url: finalUrl, 
             description: resFormType === 'text' ? resFormContent : '', uploaded_by: user.id 
         };
@@ -241,9 +236,11 @@ export const Dashboard = ({ user, onLogout, onOpenLegal, allowedDomains, onAllow
           </div>
       </Modal>
 
+      {/* MODALE D'ÉDITION ÉLARGIE */}
       {isModalOpen && (
          <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
-            <div className="bg-white rounded-xl shadow-xl w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto">
+            {/* CHANGEMENT ICI : max-w-lg devient max-w-3xl pour une fenêtre beaucoup plus large */}
+            <div className="bg-white rounded-xl shadow-xl w-full max-w-3xl p-6 max-h-[90vh] overflow-y-auto">
                <div className="flex justify-between items-center mb-6"><h3 className="text-xl font-bold">Édition</h3><button onClick={() => setIsModalOpen(false)}><X className="text-slate-400 hover:text-slate-600" /></button></div>
                <form onSubmit={(e) => { e.preventDefault(); 
                   if(modalMode === 'prompt') handleSubmitPrompt();
@@ -269,31 +266,32 @@ export const Dashboard = ({ user, onLogout, onOpenLegal, allowedDomains, onAllow
                               </div>
                            )}
                         </div>
-                        <div><label className="block text-xs font-bold text-slate-500 mb-1 uppercase tracking-wider">Instructions (Contenu)</label><textarea value={promptFormContent} onChange={e=>setPromptFormContent(e.target.value)} rows={7} className="w-full border border-slate-200 p-2.5 rounded-lg focus:ring-2 focus:ring-[#116862] outline-none font-mono text-sm" placeholder="Agis comme un conseiller expert en insertion. Rédige une synthèse..." required/></div>
+                        {/* CHANGEMENT ICI : rows passe à 12 au lieu de 7 pour plus de hauteur */}
+                        <div><label className="block text-xs font-bold text-slate-500 mb-1 uppercase tracking-wider">Instructions (Contenu)</label><textarea value={promptFormContent} onChange={e=>setPromptFormContent(e.target.value)} rows={12} className="w-full border border-slate-200 p-2.5 rounded-lg focus:ring-2 focus:ring-[#116862] outline-none font-mono text-sm" placeholder="Agis comme un conseiller expert en insertion. Rédige une synthèse..." required/></div>
                     </>
                   )}
 
-                  {/* FORMULAIRE RESSOURCE MIS À JOUR */}
                   {modalMode === 'resource' && (
                      <>
-                        <div><label className="block text-xs font-bold text-slate-500 mb-1 uppercase tracking-wider">Titre</label><input value={resFormTitle} onChange={e=>setResFormTitle(e.target.value)} required className="w-full border border-slate-200 p-2.5 rounded-lg focus:ring-2 focus:ring-[#116862] outline-none" placeholder="Titre de la ressource"/></div>
-                        
-                        <div>
-                           <label className="block text-xs font-bold text-slate-500 mb-1 uppercase tracking-wider">Catégorie principale</label>
-                           <select value={resFormCategory} onChange={e=>setResFormCategory(e.target.value)} className="w-full border border-slate-200 p-2.5 rounded-lg focus:ring-2 focus:ring-[#116862] outline-none bg-white">
-                              <option>Formation</option><option>Veille</option><option>Juridique</option><option>Outil</option><option>Interne</option>
-                           </select>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                           <div><label className="block text-xs font-bold text-slate-500 mb-1 uppercase tracking-wider">Titre</label><input value={resFormTitle} onChange={e=>setResFormTitle(e.target.value)} required className="w-full border border-slate-200 p-2.5 rounded-lg focus:ring-2 focus:ring-[#116862] outline-none" placeholder="Titre de la ressource"/></div>
+                           <div>
+                              <label className="block text-xs font-bold text-slate-500 mb-1 uppercase tracking-wider">Catégorie principale</label>
+                              <select value={resFormCategory} onChange={e=>setResFormCategory(e.target.value)} className="w-full border border-slate-200 p-2.5 rounded-lg focus:ring-2 focus:ring-[#116862] outline-none bg-white">
+                                 <option>Formation</option><option>Veille</option><option>Juridique</option><option>Outil</option><option>Interne</option>
+                              </select>
+                           </div>
                         </div>
 
-                        <div>
-                           <label className="block text-xs font-bold text-slate-500 mb-1 uppercase tracking-wider">Mots-clés (tags)</label>
-                           <input value={resFormTags} onChange={e=>setResFormTags(e.target.value)} className="w-full border border-slate-200 p-2.5 rounded-lg focus:ring-2 focus:ring-[#116862] outline-none" placeholder="Ex: NotebookLM, slides, IA (séparés par des virgules)"/>
-                        </div>
-
-                        <div>
-                           <label className="block text-xs font-bold text-slate-500 mb-1 uppercase tracking-wider">URL de l'image (Optionnel)</label>
-                           <input value={resFormImageUrl} onChange={e=>setResFormImageUrl(e.target.value)} className="w-full border border-slate-200 p-2.5 rounded-lg focus:ring-2 focus:ring-[#116862] outline-none" placeholder="https://exemple.com/image.jpg"/>
-                           <p className="text-[10px] text-slate-400 mt-1">Si vous intégrez une image dans l'article ci-dessous, elle fera automatiquement office de couverture.</p>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                           <div>
+                              <label className="block text-xs font-bold text-slate-500 mb-1 uppercase tracking-wider">Mots-clés (tags)</label>
+                              <input value={resFormTags} onChange={e=>setResFormTags(e.target.value)} className="w-full border border-slate-200 p-2.5 rounded-lg focus:ring-2 focus:ring-[#116862] outline-none" placeholder="Ex: NotebookLM, slides, IA"/>
+                           </div>
+                           <div>
+                              <label className="block text-xs font-bold text-slate-500 mb-1 uppercase tracking-wider">URL de l'image (Optionnel)</label>
+                              <input value={resFormImageUrl} onChange={e=>setResFormImageUrl(e.target.value)} className="w-full border border-slate-200 p-2.5 rounded-lg focus:ring-2 focus:ring-[#116862] outline-none" placeholder="https://exemple.com/image.jpg"/>
+                           </div>
                         </div>
 
                         <div><label className="block text-xs font-bold text-slate-500 mb-2 uppercase tracking-wider">Type de ressource</label><div className="flex bg-slate-100 p-1 rounded-lg"><button type="button" onClick={() => setResFormType('file')} className={`flex-1 py-1.5 text-xs font-medium rounded-md transition-all ${resFormType === 'file' ? 'bg-white shadow text-[#116862]' : 'text-slate-500'}`}>Fichier</button><button type="button" onClick={() => setResFormType('text')} className={`flex-1 py-1.5 text-xs font-medium rounded-md transition-all ${resFormType === 'text' ? 'bg-white shadow text-[#116862]' : 'text-slate-500'}`}>Article</button><button type="button" onClick={() => setResFormType('link')} className={`flex-1 py-1.5 text-xs font-medium rounded-md transition-all ${resFormType === 'link' ? 'bg-white shadow text-[#116862]' : 'text-slate-500'}`}>Lien</button><button type="button" onClick={() => setResFormType('video')} className={`flex-1 py-1.5 text-xs font-medium rounded-md transition-all ${resFormType === 'video' ? 'bg-white shadow text-[#116862]' : 'text-slate-500'}`}>Vidéo</button></div></div>
@@ -304,7 +302,8 @@ export const Dashboard = ({ user, onLogout, onOpenLegal, allowedDomains, onAllow
                             <div>
                                 <label className="block text-xs font-bold text-slate-500 mb-1 uppercase tracking-wider">Contenu de l'article</label>
                                 <div className="bg-white">
-                                    <ReactQuill theme="snow" value={resFormContent || ''} onChange={setResFormContent} modules={QUILL_MODULES} formats={QUILL_FORMATS} className="h-64 mb-12" />
+                                    {/* CHANGEMENT ICI : className h-[400px] pour donner beaucoup plus de hauteur à l'éditeur */}
+                                    <ReactQuill theme="snow" value={resFormContent || ''} onChange={setResFormContent} modules={QUILL_MODULES} formats={QUILL_FORMATS} className="h-[400px] mb-12" />
                                 </div>
                             </div>
                         )}
@@ -313,7 +312,6 @@ export const Dashboard = ({ user, onLogout, onOpenLegal, allowedDomains, onAllow
                      </>
                   )}
 
-                  {/* AUTRES FORMULAIRES ... */}
                   {modalMode === 'structure' && (
                     <>
                         <input value={structFormName} onChange={e=>setStructFormName(e.target.value)} className="w-full border border-slate-200 p-2.5 rounded-lg focus:ring-2 focus:ring-[#116862] outline-none" placeholder="Nom Structure" required/>
@@ -331,6 +329,10 @@ export const Dashboard = ({ user, onLogout, onOpenLegal, allowedDomains, onAllow
                         <select value={userFormRole} onChange={e=>setUserFormRole(e.target.value)} className="w-full border border-slate-200 p-2.5 rounded-lg focus:ring-2 focus:ring-[#116862] outline-none"><option>Utilisateur</option><option>Admin</option></select>
                         <select value={userFormStructure} onChange={e=>setUserFormStructure(e.target.value)} className="w-full border border-slate-200 p-2.5 rounded-lg focus:ring-2 focus:ring-[#116862] outline-none"><option value="">-- Choisir une structure --</option>{structures.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select>
                     </>
+                  )}
+                  
+                  {modalMode === 'faq' && (
+                      <p className="text-sm text-slate-500">Formulaire d'ajout de FAQ à venir...</p>
                   )}
 
                   <button className="bg-[#116862] text-white px-4 py-3 rounded-lg font-bold w-full hover:bg-[#0e524d] transition-colors mt-2 shadow-md">Valider et enregistrer</button>
