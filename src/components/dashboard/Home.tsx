@@ -50,25 +50,16 @@ export const Home = ({ onNavigate }: HomeProps) => {
         </div>
 
         <div onClick={() => onNavigate('assistant')} className="group bg-white p-6 rounded-2xl shadow-sm border border-slate-100 hover:border-[#116862]/30 hover:shadow-md transition-all cursor-pointer">
-          <div className="w-12 h-12 bg-emerald-50 text-emerald-600 rounded-xl flex items-center justify-center mb-5 group-hover:scale-110 transition-transform">
-            <Sparkles size={24} />
-          </div>
           <h3 className="font-bold text-lg mb-2 text-slate-800 group-hover:text-[#116862] transition-colors">2. Expérimenter</h3>
           <p className="text-sm text-slate-500 leading-relaxed">Utilisez notre Labo pour créer et affiner vos propres instructions avec l'aide d'un assistant.</p>
         </div>
 
         <div onClick={() => onNavigate('forum')} className="group bg-white p-6 rounded-2xl shadow-sm border border-slate-100 hover:border-[#116862]/30 hover:shadow-md transition-all cursor-pointer">
-          <div className="w-12 h-12 bg-amber-50 text-amber-600 rounded-xl flex items-center justify-center mb-5 group-hover:scale-110 transition-transform">
-            <MessageSquare size={24} />
-          </div>
           <h3 className="font-bold text-lg mb-2 text-slate-800 group-hover:text-[#116862] transition-colors">3. Échanger</h3>
           <p className="text-sm text-slate-500 leading-relaxed">Posez vos questions sur le forum de votre structure et apprenez des réussites de vos collègues.</p>
         </div>
 
         <div onClick={() => onNavigate('resources')} className="group bg-white p-6 rounded-2xl shadow-sm border border-slate-100 hover:border-[#116862]/30 hover:shadow-md transition-all cursor-pointer">
-          <div className="w-12 h-12 bg-sky-50 text-sky-600 rounded-xl flex items-center justify-center mb-5 group-hover:scale-110 transition-transform">
-            <Radio size={24} />
-          </div>
           <h3 className="font-bold text-lg mb-2 text-slate-800 group-hover:text-[#116862] transition-colors">4. S'informer et se former</h3>
           <p className="text-sm text-slate-500 leading-relaxed">Accédez à notre veille stratégique et nos tutoriels pour rester à la pointe des innovations RH.</p>
         </div>
