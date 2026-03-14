@@ -16,7 +16,7 @@ export const Home = ({ onNavigate }: HomeProps) => {
             NOUVELLE PLATEFORME
           </div>
           <h1 className="text-4xl md:text-5xl font-extrabold mb-6 tracking-tight leading-tight">
-            L'IA au service de <br/>votre accompagnement
+            L'IA au service de <br/>votre quotidien
           </h1>
           <p className="text-lg md:text-xl text-teal-50 leading-relaxed mb-8 max-w-2xl">
             Bienvenue sur <strong>IAMESRESSOURCES</strong>. Explorez, testez et partagez des pratiques innovantes pour libérer du temps administratif et vous recentrer sur l'essentiel : l'humain.
@@ -71,7 +71,7 @@ export const Home = ({ onNavigate }: HomeProps) => {
           <div className="w-12 h-12 bg-sky-50 text-sky-600 rounded-xl flex items-center justify-center mb-5 group-hover:scale-110 transition-transform">
             <Radio size={24} />
           </div>
-          <h3 className="font-bold text-lg mb-2 text-slate-800 group-hover:text-[#116862] transition-colors">4. S'informer</h3>
+          <h3 className="font-bold text-lg mb-2 text-slate-800 group-hover:text-[#116862] transition-colors">4. S'informer et se former</h3>
           <p className="text-sm text-slate-500 leading-relaxed">Accédez à notre veille stratégique et nos tutoriels pour rester à la pointe des innovations RH.</p>
         </div>
 
