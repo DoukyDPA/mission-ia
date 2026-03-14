@@ -1,9 +1,6 @@
-// src/components/dashboard/ResourceList.tsx
-import React, { useState, useMemo } from 'react';
-import { Pencil, Trash2, ChevronDown, ChevronUp, ArrowRight, Video, PlayCircle, Link as LinkIcon, Globe, Download, FileText } from 'lucide-react';
+import React, { useState } from 'react';
+import { Search, FileText, ExternalLink, Video, Download, Edit, Trash2, Tag } from 'lucide-react';
 import { Resource } from '@/types';
-import { Badge } from '@/components/ui/Badge';
-import { getYoutubeId } from '@/lib/utils';
 
 interface ResourceListProps {
   resources: Resource[];
@@ -13,138 +10,124 @@ interface ResourceListProps {
   onView: (r: Resource) => void;
 }
 
-const FILTERS = [
-  { id: 'all', label: 'Toutes les ressources' },
-  { id: 'text', label: 'Nouveautés' },
-  { id: 'video', label: 'Vidéos & Tutos' },
-  { id: 'file', label: 'Ressources à télécharger' },
-  { id: 'link', label: 'Liens à explorer' },
-] as const;
+// Fonction astucieuse : elle va chercher la première image insérée dans le texte (ReactQuill)
+const getFirstImageFromHtml = (html?: string) => {
+  if (!html) return null;
+  const match = html.match(/<img[^>]+src="([^">]+)"/);
+  return match ? match[1] : null;
+};
 
 export const ResourceList = ({ resources, isAdmin, onEdit, onDelete, onView }: ResourceListProps) => {
-  const [activeFilter, setActiveFilter] = useState<typeof FILTERS[number]['id']>('all');
+   const [searchTerm, setSearchTerm] = useState('');
+   
+   // Le moteur de recherche scrute maintenant le titre, la description ET les mots-clés
+   const filtered = resources.filter(r => {
+       const searchLower = searchTerm.toLowerCase();
+       const matchTitle = r.title.toLowerCase().includes(searchLower);
+       const matchDesc = r.description?.toLowerCase().includes(searchLower);
+       const matchTags = r.tags?.some(t => t.toLowerCase().includes(searchLower));
+       return matchTitle || matchDesc || matchTags;
+   });
 
-  const stripHtml = (html: string) => {
-    if (!html) return "";
-    try {
-      // DOMParser analyse la chaîne de caractères comme un document texte,
-      // ce qui empêche l'exécution de tout script malveillant (XSS).
-      const doc = new DOMParser().parseFromString(html, 'text/html');
-      return doc.body.textContent || "";
-    } catch (e) {
-      console.error("Erreur lors du nettoyage du HTML", e);
-      return ""; // En cas d'erreur, on préfère ne rien afficher plutôt que d'afficher du code brut
-    }
-  };
-
-  // Ajout d'un paramètre isGrid pour adapter la largeur de la carte
-  const renderCard = (r: Resource, isGrid: boolean = false) => (
-    <div key={r.id} className={`${isGrid ? 'w-full' : 'min-w-[280px] w-[280px] shrink-0'} bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col h-full hover:shadow-md transition-all`}>
-      <div className="flex justify-between items-start mb-2">
-        <Badge color={r.type === 'video' ? 'red' : 'green'}>{r.category}</Badge>
-        {isAdmin && (
-          <div className="flex gap-1">
-            <button onClick={() => onEdit(r)} className="text-slate-300 hover:text-[#116862] p-1"><Pencil size={14} /></button>
-            <button onClick={() => onDelete(r.id)} className="text-slate-300 hover:text-red-500 p-1"><Trash2 size={14} /></button>
-          </div>
-        )}
-      </div>
-      <h4 className="font-bold text-slate-800 mb-2 truncate">{r.title}</h4>
-      <div className="flex-1">
-        {r.type === 'text' && <p className="text-sm text-slate-600 line-clamp-3">{stripHtml(r.description || "")}</p>}
-        {r.type === 'video' && (
-          <div className="aspect-video bg-slate-100 rounded-lg overflow-hidden relative group">
-            <img src={`https://img.youtube.com/vi/${getYoutubeId(r.file_url || "")}/mqdefault.jpg`} alt={r.title} className="w-full h-full object-cover" />
-            <a href={r.file_url} target="_blank" rel="noreferrer" className="absolute inset-0 flex items-center justify-center bg-black/20 opacity-0 group-hover:opacity-100"><PlayCircle size={32} className="text-white" /></a>
-          </div>
-        )}
-        {r.type === 'link' && <a href={r.file_url} target="_blank" className="text-indigo-600 text-sm flex items-center gap-2"><Globe size={16} /> Visiter le lien</a>}
-        {['file', 'pdf'].includes(r.type) && <a href={r.file_url} target="_blank" className="text-blue-600 text-sm flex items-center gap-2"><Download size={16} /> Télécharger</a>}
-      </div>
-      <button onClick={() => onView(r)} className="mt-4 text-xs font-bold text-slate-500 hover:text-slate-900 uppercase tracking-wider text-left">Voir détails</button>
-    </div>
-  );
-
-  // Composant interne pour gérer le déploiement d'une ligne
-  const CategoryRow = ({ filter, items }: { filter: typeof FILTERS[number], items: Resource[] }) => {
-    const [expanded, setExpanded] = useState(false);
-    
-    if (items.length === 0) return null;
-
-    const hasMore = items.length > 4;
-    const displayedItems = expanded ? items : items.slice(0, 4);
-
-    return (
-      <section>
-        <div className="flex justify-between items-end mb-4">
-          <h3 className="text-lg font-bold text-slate-800">{filter.label}</h3>
-          
-          {/* Bouton Texte (Haut Droite) */}
-          {hasMore && !expanded && (
-            <button onClick={() => setExpanded(true)} className="text-sm font-medium text-[#116862] flex items-center gap-1 hover:underline">
-              Voir plus <ChevronDown size={16} />
-            </button>
-          )}
-          {expanded && (
-            <button onClick={() => setExpanded(false)} className="text-sm font-medium text-slate-500 flex items-center gap-1 hover:underline">
-              Réduire <ChevronUp size={16} />
-            </button>
-          )}
+   return (
+     <div className="space-y-6 animate-in fade-in duration-500">
+        
+        {/* BARRE DE RECHERCHE */}
+        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex gap-4">
+            <div className="relative flex-1">
+                <Search className="absolute left-3 top-3.5 text-slate-400" size={18} />
+                <input 
+                  type="text" 
+                  placeholder="Rechercher par titre, contenu ou mots-clés (ex: NotebookLM, RH, slides)..." 
+                  className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-[#116862] outline-none font-medium"
+                  value={searchTerm} 
+                  onChange={e => setSearchTerm(e.target.value)} 
+                />
+            </div>
         </div>
-
-        {/* Conteneur : Grille si déployé, Ligne si réduit */}
-        <div className={expanded ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6" : "flex gap-4 overflow-x-auto pb-4 scrollbar-thin"}>
-          {displayedItems.map(r => renderCard(r, expanded))}
-          
-          {/* Carte "Voir Plus" à la fin de la ligne */}
-          {!expanded && hasMore && (
-            <button 
-              onClick={() => setExpanded(true)}
-              className="min-w-[280px] w-[280px] shrink-0 bg-slate-50 border-2 border-dashed border-slate-200 rounded-xl flex flex-col items-center justify-center text-slate-500 hover:text-[#116862] hover:bg-slate-100 hover:border-[#116862] transition-colors group"
-            >
-              <div className="w-12 h-12 rounded-full bg-white shadow-sm flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
-                <ArrowRight className="text-inherit" />
-              </div>
-              <span className="font-bold">Voir plus</span>
-              <span className="text-sm mt-1">{items.length - 4} ressources masquées</span>
-            </button>
-          )}
+        
+        {/* GRILLE AÉRÉE (3 colonnes maximum au lieu de 4) */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+           {filtered.map(resource => {
+               // On cherche une image de couverture ou on extrait la première image de l'article
+               const extractedImage = resource.image_url || getFirstImageFromHtml(resource.description);
+               
+               return (
+                 <div key={resource.id} className="bg-white rounded-xl shadow-sm border border-slate-200 flex flex-col hover:border-[#116862]/40 hover:shadow-md transition-all group">
+                    
+                    {/* IMAGE COVER (Haut de la carte) */}
+                    {extractedImage ? (
+                        <div className="h-48 w-full bg-slate-100 relative overflow-hidden rounded-t-xl border-b border-slate-100">
+                            <img src={extractedImage} alt={resource.title} className="object-cover w-full h-full group-hover:scale-105 transition-transform duration-500" />
+                        </div>
+                    ) : (
+                        <div className="h-20 w-full bg-gradient-to-r from-slate-100 to-slate-50 flex items-center justify-center border-b border-slate-100 rounded-t-xl">
+                            <FileText size={24} className="text-slate-300" />
+                        </div>
+                    )}
+                    
+                    {/* CONTENU (Flex-col pour pousser le bouton vers le bas) */}
+                    <div className="p-6 flex flex-col flex-1">
+                        
+                        {/* MOTS CLÉS (TAGS) */}
+                        <div className="flex flex-wrap gap-2 mb-3">
+                            <span className="px-2 py-1 bg-[#116862]/10 text-[#116862] text-[10px] font-bold uppercase tracking-wider rounded">
+                                {resource.category}
+                            </span>
+                            {resource.tags?.map((tag, idx) => (
+                                <span key={idx} className="px-2 py-1 bg-slate-100 text-slate-600 text-[10px] font-medium rounded flex items-center gap-1">
+                                    <Tag size={10} /> {tag}
+                                </span>
+                            ))}
+                        </div>
+                        
+                        {/* TITRE COMPLET (Plus de limitation de lignes) */}
+                        <h3 className="font-bold text-lg text-slate-800 mb-3 leading-tight group-hover:text-[#116862] transition-colors">
+                            {resource.title}
+                        </h3>
+                        
+                        {/* EXTRAIT TEXTE SI ARTICLE */}
+                        {resource.type === 'text' && resource.description && !extractedImage && (
+                            <p className="text-sm text-slate-500 line-clamp-3 mb-4">
+                                {resource.description.replace(/<[^>]*>?/gm, '')}
+                            </p>
+                        )}
+                        
+                        {/* FOOTER ANCRÉ EN BAS (mt-auto) */}
+                        <div className="mt-auto pt-5 flex items-center justify-between">
+                            <span className="text-xs text-slate-400 font-medium flex items-center gap-1">
+                                {resource.date}
+                            </span>
+                            
+                            <div className="flex gap-2">
+                                {isAdmin && (
+                                    <>
+                                       <button onClick={() => onEdit(resource)} className="p-2 text-slate-400 hover:text-blue-500 hover:bg-blue-50 rounded-lg transition-colors"><Edit size={16}/></button>
+                                       <button onClick={() => onDelete(resource.id)} className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"><Trash2 size={16}/></button>
+                                    </>
+                                )}
+                                {resource.type === 'text' ? (
+                                    <button onClick={() => onView(resource)} className="bg-[#116862] text-white px-5 py-2.5 rounded-lg text-sm font-bold shadow-sm hover:bg-[#0e524d] transition-colors">
+                                        Lire la suite
+                                    </button>
+                                ) : (
+                                    <a href={resource.file_url} target="_blank" rel="noopener noreferrer" className="bg-[#116862] text-white px-5 py-2.5 rounded-lg text-sm font-bold shadow-sm hover:bg-[#0e524d] transition-colors flex items-center gap-2">
+                                        {resource.type === 'video' ? <Video size={16}/> : resource.type === 'link' ? <ExternalLink size={16}/> : <Download size={16}/>}
+                                        Ouvrir
+                                    </a>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                 </div>
+               );
+           })}
+           {filtered.length === 0 && (
+               <div className="col-span-full py-12 text-center text-slate-500">
+                   Aucune ressource ne correspond à votre recherche.
+               </div>
+           )}
         </div>
-      </section>
-    );
-  };
-
-  return (
-    <div className="space-y-8">
-      {/* Barre de navigation */}
-      <div className="flex gap-2 p-1 bg-slate-100 rounded-lg overflow-x-auto">
-        {FILTERS.map((f) => (
-          <button
-            key={f.id}
-            onClick={() => setActiveFilter(f.id)}
-            className={`px-4 py-2 rounded-md text-sm font-medium transition-colors whitespace-nowrap ${activeFilter === f.id ? 'bg-white text-[#116862] shadow-sm' : 'text-slate-600 hover:text-slate-900'}`}
-          >
-            {f.label}
-          </button>
-        ))}
-      </div>
-
-      {/* VUE "TOUTES LES RESSOURCES" (Lignes déployables) */}
-      {activeFilter === 'all' ? (
-        <div className="space-y-10">
-          {FILTERS.slice(1).map(filter => {
-            const items = resources.filter(r => filter.id === 'file' ? ['file', 'pdf'].includes(r.type) : r.type === filter.id);
-            return <CategoryRow key={filter.id} filter={filter} items={items} />;
-          })}
-        </div>
-      ) : (
-        /* VUE FILTRÉE (Grille classique complète) */
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          {resources
-            .filter(r => activeFilter === 'file' ? ['file', 'pdf'].includes(r.type) : r.type === activeFilter)
-            .map(r => renderCard(r, true))}
-        </div>
-      )}
-    </div>
-  );
-};
+     </div>
+   );
+}
