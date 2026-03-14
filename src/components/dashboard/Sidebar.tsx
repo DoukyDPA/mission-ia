@@ -2,7 +2,7 @@ import React from 'react';
 import { 
   Menu, X, GitFork, BookOpen, Building2, Globe, Users, 
   LogOut, ShieldCheck, FileText, Sparkles, Home as HomeIcon,
-  MessageSquare, HelpCircle // Nouveaux imports
+  MessageSquare, HelpCircle
 } from 'lucide-react';
 import { SidebarItem } from '@/components/ui/SidebarItem';
 import { User, Structure } from '@/types';
@@ -24,9 +24,10 @@ export const Sidebar = ({ user, userStructure, currentTab, setCurrentTab, isAdmi
   const MenuContent = () => (
     <div className="flex flex-col h-full justify-between">
       <div>
+        {/* EN-TÊTE DESKTOP AVEC LE LOGO */}
         <div className="p-6 border-b border-slate-100 hidden md:block">
-           <div className="flex items-center gap-2 text-[#116862] font-extrabold text-xl tracking-tighter uppercase">
-               IAMESRESSOURCES
+           <div className="flex items-center">
+               <img src="/logo.png" alt="IAMESRESSOURCES" className="h-12 w-auto object-contain" />
            </div>
            <div className="mt-4 p-2 bg-[#116862]/10 rounded text-xs font-bold text-[#116862] truncate">
              {user.missionLocale}
@@ -42,7 +43,6 @@ export const Sidebar = ({ user, userStructure, currentTab, setCurrentTab, isAdmi
            
            <SidebarItem icon={BookOpen} label="Ressources & Veille" active={currentTab === 'resources'} onClick={() => { setCurrentTab('resources'); setIsMobileMenuOpen(false); }} />
 
-           {/* --- NOUVEAUX ONGLETS FORUM & FAQ --- */}
            <div className="mt-6 mb-2 px-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest pt-4 border-t border-slate-100">Entraide</div>
            
            <SidebarItem icon={MessageSquare} label="Forum" active={currentTab === 'forum'} onClick={() => { setCurrentTab('forum'); setIsMobileMenuOpen(false); }} />
@@ -99,10 +99,12 @@ export const Sidebar = ({ user, userStructure, currentTab, setCurrentTab, isAdmi
 
   return (
     <>
+      {/* EN-TÊTE MOBILE AVEC LE LOGO */}
       <div className="md:hidden bg-white border-b p-4 flex justify-between items-center sticky top-0 z-20 shadow-sm">
-         <span className="font-bold text-[#116862]">IAMESRESSOURCES</span>
+         <img src="/logo.png" alt="IAMESRESSOURCES" className="h-8 w-auto object-contain" />
          <button onClick={() => setIsMobileMenuOpen(true)} className="text-slate-600"><Menu /></button>
       </div>
+      
       {isMobileMenuOpen && (
         <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-sm md:hidden">
             <div className="bg-white w-3/4 h-full shadow-xl animate-in slide-in-from-left duration-200">
