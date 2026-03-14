@@ -6,7 +6,6 @@ import { supabase } from '@/lib/supabase';
 import { User, AllowedDomain, Prompt, Resource, Structure } from '@/types';
 import { Modal } from '@/components/ui/Modal';
 
-// Composants externes
 import { Sidebar } from './Sidebar';
 import { PromptList } from './PromptList';
 import { ResourceList } from './ResourceList';
@@ -16,27 +15,11 @@ import { Home } from './Home';
 import { FAQ } from './FAQ';
 import { Forum } from './Forum';
 
-// --- CONFIGURATION ÉDITEUR RICHE ---
 import 'react-quill-new/dist/quill.snow.css'; 
 const ReactQuill = dynamic(() => import('react-quill-new'), { ssr: false });
 
-const QUILL_MODULES = {
-  toolbar: [
-    [{ 'header': [1, 2, false] }],
-    ['bold', 'italic', 'underline', 'strike', 'blockquote'],
-    [{'list': 'ordered'}, {'list': 'bullet'}],
-    ['link', 'image'],
-    ['clean']
-  ],
-};
-
-const QUILL_FORMATS = [
-  'header', 'bold', 'italic', 'underline', 'strike', 'blockquote', 'list', 'bullet', 'link', 'image'
-];
-
-// Données Mock (Secours)
-const MOCK_STRUCTURES = [{ id: 1, name: "Mission Locale de Lyon", city: "Lyon" }];
-const MOCK_PROMPTS = [{ id: 1, title: "Exemple", content: "Contenu...", author: "Admin", role: "Admin", avatar: "AD", missionLocale: "National", date: "Hier", tags: ["Général"], likes: 0, forks: 0, isFork: false }];
+const QUILL_MODULES = { toolbar: [ [{ 'header': [1, 2, false] }], ['bold', 'italic', 'underline', 'strike', 'blockquote'], [{'list': 'ordered'}, {'list': 'bullet'}], ['link', 'image'], ['clean'] ] };
+const QUILL_FORMATS = [ 'header', 'bold', 'italic', 'underline', 'strike', 'blockquote', 'list', 'bullet', 'link', 'image' ];
 
 interface DashboardProps {
   user: User;
@@ -50,29 +33,24 @@ export const Dashboard = ({ user, onLogout, onOpenLegal, allowedDomains, onAllow
   const [currentTab, setCurrentTab] = useState('home');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   
-  // --- DONNÉES ---
   const [prompts, setPrompts] = useState<Prompt[]>([]);
   const [resources, setResources] = useState<Resource[]>([]);
   const [structures, setStructures] = useState<Structure[]>([]);
   const [adminUsers, setAdminUsers] = useState<User[]>([]);
   
-  // --- UI STATE ---
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState(''); 
   const [viewingResource, setViewingResource] = useState<Resource | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   
-  // Les catégories sont initialisées à vide, elles seront remplies dynamiquement
   const [availableCategories, setAvailableCategories] = useState<string[]>([]);
   const [selectedCategory, setSelectedCategory] = useState('Tous');
 
-  // --- ÉTATS DES FORMULAIRES ---
   const [editingPromptId, setEditingPromptId] = useState<string | number | null>(null);
   const [promptFormTitle, setPromptFormTitle] = useState('');
   const [promptFormContent, setPromptFormContent] = useState('');
   const [promptFormTag, setPromptFormTag] = useState('');
   const [parentPromptId, setParentPromptId] = useState<string | number | null>(null);
-  // NOUVEL ÉTAT : Permet de basculer l'affichage pour la création de catégorie
   const [isCreatingNewTag, setIsCreatingNewTag] = useState(false);
 
   const [editingResourceId, setEditingResourceId] = useState<string | number | null>(null);
@@ -80,6 +58,10 @@ export const Dashboard = ({ user, onLogout, onOpenLegal, allowedDomains, onAllow
   const [resFormContent, setResFormContent] = useState(''); 
   const [resFormTitle, setResFormTitle] = useState('');
   const [resFormCategory, setResFormCategory] = useState('Formation');
+  
+  // NOUVEAUX ÉTATS POUR LA RESSOURCE
+  const [resFormTags, setResFormTags] = useState('');
+  const [resFormImageUrl, setResFormImageUrl] = useState('');
 
   const [editingUserId, setEditingUserId] = useState<string | number | null>(null);
   const [userFormEmail, setUserFormEmail] = useState('');
@@ -99,41 +81,33 @@ export const Dashboard = ({ user, onLogout, onOpenLegal, allowedDomains, onAllow
   const isAdmin = (user.role || '').trim().toLowerCase() === 'admin';
   const userStructure = structures.find(s => s.id == user.structure_id) || null;
   
-  const cleanHtmlContent = (html: string) => {
-      if (!html) return "";
-      return html.replace(/style="[^"]*"/g, "").replace(/&nbsp;/g, " ");       
-  };
+  const cleanHtmlContent = (html: string) => { return html ? html.replace(/style="[^"]*"/g, "").replace(/&nbsp;/g, " ") : ""; };
 
-  // --- CHARGEMENT DES DONNÉES ---
   const refreshData = useCallback(async () => {
     if (!supabase) return; 
     try {
-        const { data: pData, error: pError } = await supabase.from('prompts').select(`*, profiles(full_name, avatar_url, role), structures(name)`).order('created_at', { ascending: false });
-        if (pError) throw pError;
+        const { data: pData } = await supabase.from('prompts').select(`*, profiles(full_name, avatar_url, role), structures(name)`).order('created_at', { ascending: false });
         if (pData) {
-            // NOUVELLE LOGIQUE : On ne prend que les catégories réellement utilisées
             const usedTags = new Set<string>();
             pData.forEach((p: any) => { if (p.tags && Array.isArray(p.tags)) p.tags.forEach((t: string) => usedTags.add(t)); });
-            
             const dynamicCategories = Array.from(usedTags).sort();
-            if (dynamicCategories.length === 0) dynamicCategories.push('Général'); // Valeur par défaut si BDD vide
-            
+            if (dynamicCategories.length === 0) dynamicCategories.push('Général');
             setAvailableCategories(dynamicCategories);
             
             setPrompts(pData.map((p: any) => ({
-                id: p.id, title: p.title, content: p.content, 
-                author: p.profiles?.full_name || 'Inconnu', 
-                role: p.profiles?.role || 'Membre',
-                avatar: (p.profiles?.full_name || 'U').substring(0,2).toUpperCase(), 
-                missionLocale: p.structures?.name || 'National',
-                date: new Date(p.created_at).toLocaleDateString(), 
-                tags: p.tags || [], likes: p.likes_count || 0, forks: 0, isFork: p.is_fork || false,
+                id: p.id, title: p.title, content: p.content, author: p.profiles?.full_name || 'Inconnu', role: p.profiles?.role || 'Membre',
+                avatar: (p.profiles?.full_name || 'U').substring(0,2).toUpperCase(), missionLocale: p.structures?.name || 'National',
+                date: new Date(p.created_at).toLocaleDateString(), tags: p.tags || [], likes: p.likes_count || 0, forks: 0, isFork: p.is_fork || false,
                 parentId: p.parent_id, parentAuthor: p.parent_id ? 'Autre' : undefined, user_id: p.user_id
             })));
         }
         
         const { data: rData } = await supabase.from('resources').select('*').order('created_at', { ascending: false });
-        if (rData) setResources(rData.map((r: any) => ({ ...r, type: r.file_type || 'file', date: new Date(r.created_at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' }) })));
+        // MAPPAGE DE L'IMAGE ET DES TAGS DE LA BDD
+        if (rData) setResources(rData.map((r: any) => ({ 
+            ...r, type: r.file_type || 'file', tags: r.tags || [], image_url: r.image_url || null,
+            date: new Date(r.created_at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' }) 
+        })));
         
         const { data: sData } = await supabase.from('structures').select('*');
         if (sData) setStructures(sData);
@@ -148,7 +122,7 @@ export const Dashboard = ({ user, onLogout, onOpenLegal, allowedDomains, onAllow
     } catch (e) { console.error("Erreur refresh:", e); }
   }, [isAdmin, onAllowedDomainsChange]);
 
-  useEffect(() => { if (!supabase) { setPrompts(MOCK_PROMPTS); setStructures(MOCK_STRUCTURES); onAllowedDomainsChange([]); } else { refreshData(); } }, [refreshData, onAllowedDomainsChange]);
+  useEffect(() => { refreshData(); }, [refreshData]);
 
   const copyPrompt = (content: string) => { navigator.clipboard.writeText(content); alert("Prompt copié !"); };
   const deleteItem = async (table: string, id: string|number) => { if(!confirm("Supprimer ?")) return; if(supabase) { await supabase.from(table).delete().eq('id', id); await refreshData(); } };
@@ -157,8 +131,9 @@ export const Dashboard = ({ user, onLogout, onOpenLegal, allowedDomains, onAllow
   const prepareForkPrompt = (original: Prompt) => { setModalMode('prompt'); setEditingPromptId(null); setPromptFormTitle(`Variante : ${original.title}`); setPromptFormContent(original.content); setPromptFormTag(original.tags[0] || availableCategories[0] || 'Général'); setParentPromptId(original.id); setIsCreatingNewTag(false); setIsModalOpen(true); }
   const prepareEditPrompt = (original: Prompt) => { setModalMode('prompt'); setEditingPromptId(original.id); setPromptFormTitle(original.title); setPromptFormContent(original.content); setPromptFormTag(original.tags[0] || availableCategories[0] || 'Général'); setParentPromptId(null); setIsCreatingNewTag(false); setIsModalOpen(true); }
   
-  const prepareCreateResource = () => { setModalMode('resource'); setEditingResourceId(null); setResFormTitle(''); setResFormCategory('Formation'); setResFormType('file'); setResFormContent(''); setSelectedFile(null); setIsModalOpen(true); }
-  const prepareEditResource = (r: Resource) => { setModalMode('resource'); setEditingResourceId(r.id); setResFormTitle(r.title); setResFormCategory(r.category); setResFormType(r.type as any); setResFormContent(r.type === 'text' ? (r.description || '') : (r.file_url || '')); setSelectedFile(null); setIsModalOpen(true); }
+  // RESET DES NOUVEAUX CHAMPS RESSOURCES
+  const prepareCreateResource = () => { setModalMode('resource'); setEditingResourceId(null); setResFormTitle(''); setResFormCategory('Veille'); setResFormTags(''); setResFormImageUrl(''); setResFormType('file'); setResFormContent(''); setSelectedFile(null); setIsModalOpen(true); }
+  const prepareEditResource = (r: Resource) => { setModalMode('resource'); setEditingResourceId(r.id); setResFormTitle(r.title); setResFormCategory(r.category); setResFormTags(r.tags?.join(', ') || ''); setResFormImageUrl(r.image_url || ''); setResFormType(r.type as any); setResFormContent(r.type === 'text' ? (r.description || '') : (r.file_url || '')); setSelectedFile(null); setIsModalOpen(true); }
   
   const prepareCreateStructure = () => { setModalMode('structure'); setEditingStructureId(null); setStructFormName(''); setStructFormCity(''); setStructFormHasCharter(false); setStructFormCharterUrl(''); setSelectedFile(null); setIsModalOpen(true); }
   const prepareEditStructure = (s: Structure) => { setModalMode('structure'); setEditingStructureId(s.id); setStructFormName(s.name); setStructFormCity(s.city); setStructFormHasCharter(s.has_charter || false); setStructFormCharterUrl(s.charter_url || ''); setSelectedFile(null); setIsModalOpen(true); }
@@ -169,13 +144,10 @@ export const Dashboard = ({ user, onLogout, onOpenLegal, allowedDomains, onAllow
   const handleSubmitPrompt = async () => {
     if (!supabase) { setIsModalOpen(false); return; }
     try {
-        // On s'assure que le tag n'est pas vide
         const finalTag = promptFormTag.trim() ? promptFormTag.trim() : 'Général';
         const payload = { title: promptFormTitle, content: promptFormContent, tags: [finalTag] };
-        
-        if (editingPromptId) { const { error } = await supabase.from('prompts').update(payload).eq('id', editingPromptId); if (error) throw error; } 
-        else { const { data: profile } = await supabase.from('profiles').select('structure_id').eq('id', user.id).single(); const { error } = await supabase.from('prompts').insert({ ...payload, user_id: user.id, structure_id: profile?.structure_id, is_fork: !!parentPromptId, parent_id: parentPromptId }); if (error) throw error; }
-        
+        if (editingPromptId) { await supabase.from('prompts').update(payload).eq('id', editingPromptId); } 
+        else { const { data: profile } = await supabase.from('profiles').select('structure_id').eq('id', user.id).single(); await supabase.from('prompts').insert({ ...payload, user_id: user.id, structure_id: profile?.structure_id, is_fork: !!parentPromptId, parent_id: parentPromptId }); }
         await refreshData(); setIsModalOpen(false);
     } catch (err: any) { alert("Erreur : " + err.message); }
   };
@@ -187,36 +159,39 @@ export const Dashboard = ({ user, onLogout, onOpenLegal, allowedDomains, onAllow
         if (resFormType === 'file' && selectedFile) { const fileName = `${user.id}/${Date.now()}.${selectedFile.name.split('.').pop()}`; await supabase.storage.from('documents').upload(fileName, selectedFile); finalUrl = supabase.storage.from('documents').getPublicUrl(fileName).data.publicUrl || ''; }
         else if (resFormType === 'text') { finalUrl = ''; }
         
-        const payload = { title: resFormTitle, file_type: resFormType, category: resFormCategory, access_scope: 'global', target_structure_id: null, file_url: finalUrl, description: resFormType === 'text' ? resFormContent : '', uploaded_by: user.id };
-        if (editingResourceId) { const { error } = await supabase.from('resources').update(payload).eq('id', editingResourceId); if (error) throw error; } else { const { error } = await supabase.from('resources').insert(payload); if (error) throw error; }
+        // CONVERSION DU CHAMP TEXTE EN TABLEAU DE MOTS-CLÉS
+        const tagsArray = resFormTags.split(',').map(t => t.trim()).filter(Boolean);
+
+        const payload = { 
+            title: resFormTitle, file_type: resFormType, category: resFormCategory, 
+            tags: tagsArray, image_url: resFormImageUrl || null, // NOUVEAUX CHAMPS
+            access_scope: 'global', target_structure_id: null, file_url: finalUrl, 
+            description: resFormType === 'text' ? resFormContent : '', uploaded_by: user.id 
+        };
+        
+        if (editingResourceId) { await supabase.from('resources').update(payload).eq('id', editingResourceId); } 
+        else { await supabase.from('resources').insert(payload); }
         await refreshData(); setIsModalOpen(false);
     } catch (err: any) { alert("Erreur ressource : " + err.message); }
   };
 
   const handleSubmitStructure = async () => {
-      if (!supabase) { setIsModalOpen(false); return; }
+      if (!supabase) return;
       try {
           let charterUrl = structFormCharterUrl;
           if (structFormHasCharter && selectedFile) {
              const fileName = `charters/${Date.now()}_${selectedFile.name.replace(/[^a-zA-Z0-9.]/g, '_')}`;
-             const { error: uploadError } = await supabase.storage.from('documents').upload(fileName, selectedFile);
-             if (uploadError) throw uploadError;
+             await supabase.storage.from('documents').upload(fileName, selectedFile);
              charterUrl = supabase.storage.from('documents').getPublicUrl(fileName).data.publicUrl;
           }
           const payload = { name: structFormName, city: structFormCity, has_charter: structFormHasCharter, charter_url: structFormHasCharter ? charterUrl : null };
-          if (editingStructureId) await supabase.from('structures').update(payload).eq('id', editingStructureId);
-          else await supabase.from('structures').insert(payload);
+          if (editingStructureId) await supabase.from('structures').update(payload).eq('id', editingStructureId); else await supabase.from('structures').insert(payload);
           await refreshData(); setIsModalOpen(false);
       } catch (e: any) { alert("Erreur structure: " + e.message); }
   }
 
-  const handleSubmitUser = async () => { 
-      if (!supabase) return; 
-      if (editingUserId) await supabase.from('profiles').update({ full_name: userFormName, role: userFormRole, structure_id: userFormStructure }).eq('id', editingUserId); 
-      await refreshData(); setIsModalOpen(false); 
-  };
-  
-  const handleCreateDomain = async () => { if (!supabase) return; const normalized = domainFormValue.trim().toLowerCase(); await supabase.from('allowed_domains').insert({ domain: normalized, structure_id: domainFormStructure || null, created_by: user.id }); await refreshData(); setIsModalOpen(false); }
+  const handleSubmitUser = async () => { if (!supabase) return; if (editingUserId) await supabase.from('profiles').update({ full_name: userFormName, role: userFormRole, structure_id: userFormStructure }).eq('id', editingUserId); await refreshData(); setIsModalOpen(false); };
+  const handleCreateDomain = async () => { if (!supabase) return; await supabase.from('allowed_domains').insert({ domain: domainFormValue.trim().toLowerCase(), structure_id: domainFormStructure || null, created_by: user.id }); await refreshData(); setIsModalOpen(false); }
 
   return (
     <div className="min-h-screen bg-slate-50 font-sans text-slate-900 flex flex-col md:flex-row">
@@ -226,12 +201,7 @@ export const Dashboard = ({ user, onLogout, onOpenLegal, allowedDomains, onAllow
          {['prompts', 'resources', 'structures', 'domains', 'assistant', 'forum', 'faq'].includes(currentTab) && (
              <div className="flex justify-between items-center mb-8">
                 <h1 className="text-2xl font-bold uppercase tracking-tight text-slate-800">
-                    {currentTab === 'prompts' ? 'Promptothèque' : 
-                     currentTab === 'assistant' ? 'Laboratoire de Prompts' : 
-                     currentTab === 'resources' ? 'Ressources & Veille' : 
-                     currentTab === 'forum' ? 'Forum' :
-                     currentTab === 'faq' ? 'Foire aux questions' :
-                     'Administration'}
+                    {currentTab === 'prompts' ? 'Promptothèque' : currentTab === 'assistant' ? 'Laboratoire de Prompts' : currentTab === 'resources' ? 'Ressources & Veille' : currentTab === 'forum' ? 'Forum' : currentTab === 'faq' ? 'Foire aux questions' : 'Administration'}
                 </h1>
                 
                 {!['assistant', 'forum', 'faq'].includes(currentTab) && (
@@ -244,7 +214,6 @@ export const Dashboard = ({ user, onLogout, onOpenLegal, allowedDomains, onAllow
                         <Plus size={18} /> Ajouter
                     </button>
                 )}
-
                 {currentTab === 'faq' && isAdmin && (
                     <button onClick={() => { setModalMode('faq'); setIsModalOpen(true); }} className="bg-[#116862] text-white px-4 py-2 rounded-lg flex items-center gap-2 text-sm font-bold shadow-md hover:bg-[#0e524d]">
                         <Plus size={18} /> Ajouter une Q/R
@@ -263,23 +232,15 @@ export const Dashboard = ({ user, onLogout, onOpenLegal, allowedDomains, onAllow
          {(currentTab === 'structures' || currentTab === 'users' || currentTab === 'domains') && <AdminPanel currentTab={currentTab} structures={structures} users={adminUsers} domains={allowedDomains} onAdd={() => { if(currentTab==='structures') prepareCreateStructure(); else if(currentTab==='domains') {setModalMode('domain'); setIsModalOpen(true);} }} onDelete={deleteItem} onEditUser={prepareEditUser} onEditStructure={prepareEditStructure} onInviteUser={prepareInviteUser} />}
       </main>
 
-      {/* --- MODALE LECTURE --- */}
       <Modal isOpen={!!viewingResource} onClose={() => setViewingResource(null)} title={viewingResource?.title || 'Lecture'}>
           <div className="w-full">
               <div 
-                 className="
-                    prose prose-sm prose-slate max-w-none text-slate-800 
-                    !whitespace-normal !break-words 
-                    [&_*]:!whitespace-normal [&_*]:!break-words [&_*]:!max-w-full
-                    [&_img]:!max-w-full [&_img]:!h-auto [&_img]:rounded-lg [&_img]:my-4
-                    [&_p]:mb-3 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5
-                 "
+                 className="prose prose-sm prose-slate max-w-none text-slate-800 !whitespace-normal !break-words [&_*]:!whitespace-normal [&_*]:!break-words [&_*]:!max-w-full [&_img]:!max-w-full [&_img]:!h-auto [&_img]:rounded-lg [&_img]:my-4 [&_p]:mb-3 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5"
                  dangerouslySetInnerHTML={{ __html: cleanHtmlContent(viewingResource?.description || '') }}
               />
           </div>
       </Modal>
 
-      {/* MODALE D'ÉDITION */}
       {isModalOpen && (
          <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
             <div className="bg-white rounded-xl shadow-xl w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto">
@@ -292,123 +253,87 @@ export const Dashboard = ({ user, onLogout, onOpenLegal, allowedDomains, onAllow
                   else if(modalMode === 'user') handleSubmitUser();
                }} className="space-y-5">
                   
-                  {/* --- CHAMPS PROMPT AVEC CATÉGORIE DYNAMIQUE --- */}
                   {modalMode === 'prompt' && (
                     <>
-                        <div>
-                           <label className="block text-xs font-bold text-slate-500 mb-1 uppercase tracking-wider">Titre du prompt</label>
-                           <input value={promptFormTitle} onChange={e=>setPromptFormTitle(e.target.value)} className="w-full border border-slate-200 p-2.5 rounded-lg focus:ring-2 focus:ring-[#116862] outline-none" placeholder="Ex: Synthèse d'entretien..." required/>
-                        </div>
-                        
+                        <div><label className="block text-xs font-bold text-slate-500 mb-1 uppercase tracking-wider">Titre du prompt</label><input value={promptFormTitle} onChange={e=>setPromptFormTitle(e.target.value)} className="w-full border border-slate-200 p-2.5 rounded-lg focus:ring-2 focus:ring-[#116862] outline-none" placeholder="Ex: Synthèse d'entretien..." required/></div>
                         <div>
                            <label className="block text-xs font-bold text-slate-500 mb-1 uppercase tracking-wider">Catégorie</label>
                            {!isCreatingNewTag ? (
-                              <select 
-                                 value={promptFormTag} 
-                                 onChange={e => {
-                                    if (e.target.value === '__NEW__') {
-                                       setIsCreatingNewTag(true);
-                                       setPromptFormTag('');
-                                    } else {
-                                       setPromptFormTag(e.target.value);
-                                    }
-                                 }} 
-                                 className="w-full border border-slate-200 p-2.5 rounded-lg focus:ring-2 focus:ring-[#116862] outline-none bg-white cursor-pointer"
-                              >
-                                 {availableCategories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
-                                 <option disabled>──────────</option>
-                                 <option value="__NEW__" className="font-bold text-[#116862]">➕ Créer une nouvelle catégorie...</option>
+                              <select value={promptFormTag} onChange={e => { if (e.target.value === '__NEW__') { setIsCreatingNewTag(true); setPromptFormTag(''); } else { setPromptFormTag(e.target.value); } }} className="w-full border border-slate-200 p-2.5 rounded-lg focus:ring-2 focus:ring-[#116862] outline-none bg-white cursor-pointer">
+                                 {availableCategories.map(cat => <option key={cat} value={cat}>{cat}</option>)}<option disabled>──────────</option><option value="__NEW__" className="font-bold text-[#116862]">➕ Créer une nouvelle catégorie...</option>
                               </select>
                            ) : (
                               <div className="flex gap-2">
-                                 <input 
-                                    type="text" 
-                                    value={promptFormTag} 
-                                    onChange={e => setPromptFormTag(e.target.value)} 
-                                    placeholder="Nom de la nouvelle catégorie..." 
-                                    className="w-full border border-slate-200 p-2.5 rounded-lg focus:ring-2 focus:ring-[#116862] outline-none"
-                                    autoFocus
-                                    required
-                                 />
-                                 <button 
-                                    type="button" 
-                                    onClick={() => {
-                                       setIsCreatingNewTag(false);
-                                       setPromptFormTag(availableCategories[0] || 'Général');
-                                    }} 
-                                    className="bg-slate-100 text-slate-600 px-4 rounded-lg hover:bg-slate-200 transition-colors text-sm font-medium"
-                                 >
-                                    Annuler
-                                 </button>
+                                 <input type="text" value={promptFormTag} onChange={e => setPromptFormTag(e.target.value)} placeholder="Nom de la nouvelle catégorie..." className="w-full border border-slate-200 p-2.5 rounded-lg focus:ring-2 focus:ring-[#116862] outline-none" autoFocus required />
+                                 <button type="button" onClick={() => { setIsCreatingNewTag(false); setPromptFormTag(availableCategories[0] || 'Général'); }} className="bg-slate-100 text-slate-600 px-4 rounded-lg hover:bg-slate-200 transition-colors text-sm font-medium">Annuler</button>
                               </div>
                            )}
-                           <p className="text-[10px] text-slate-400 mt-1.5">
-                              {isCreatingNewTag ? "Saisissez un nom explicite (ex: Administratif, Ateliers...)" : "Choisissez une catégorie existante ou créez-en une nouvelle."}
-                           </p>
                         </div>
-
-                        <div>
-                           <label className="block text-xs font-bold text-slate-500 mb-1 uppercase tracking-wider">Instructions (Contenu)</label>
-                           <textarea value={promptFormContent} onChange={e=>setPromptFormContent(e.target.value)} rows={7} className="w-full border border-slate-200 p-2.5 rounded-lg focus:ring-2 focus:ring-[#116862] outline-none font-mono text-sm" placeholder="Agis comme un conseiller expert en insertion. Rédige une synthèse..." required/>
-                        </div>
+                        <div><label className="block text-xs font-bold text-slate-500 mb-1 uppercase tracking-wider">Instructions (Contenu)</label><textarea value={promptFormContent} onChange={e=>setPromptFormContent(e.target.value)} rows={7} className="w-full border border-slate-200 p-2.5 rounded-lg focus:ring-2 focus:ring-[#116862] outline-none font-mono text-sm" placeholder="Agis comme un conseiller expert en insertion. Rédige une synthèse..." required/></div>
                     </>
                   )}
 
-                  {/* --- CHAMPS RESSOURCE --- */}
+                  {/* FORMULAIRE RESSOURCE MIS À JOUR */}
                   {modalMode === 'resource' && (
                      <>
-                        <div><label className="block text-xs font-bold text-slate-500 mb-1">Titre</label><input value={resFormTitle} onChange={e=>setResFormTitle(e.target.value)} required className="w-full border p-2 rounded" placeholder="Titre"/></div>
-                        <div><label className="block text-xs font-bold text-slate-500 mb-2">Type</label><div className="flex bg-slate-100 p-1 rounded-lg"><button type="button" onClick={() => setResFormType('file')} className={`flex-1 py-1.5 text-xs font-medium rounded-md transition-all ${resFormType === 'file' ? 'bg-white shadow text-[#116862]' : 'text-slate-500'}`}>Fichier</button><button type="button" onClick={() => setResFormType('text')} className={`flex-1 py-1.5 text-xs font-medium rounded-md transition-all ${resFormType === 'text' ? 'bg-white shadow text-[#116862]' : 'text-slate-500'}`}>Article</button><button type="button" onClick={() => setResFormType('link')} className={`flex-1 py-1.5 text-xs font-medium rounded-md transition-all ${resFormType === 'link' ? 'bg-white shadow text-[#116862]' : 'text-slate-500'}`}>Lien</button><button type="button" onClick={() => setResFormType('video')} className={`flex-1 py-1.5 text-xs font-medium rounded-md transition-all ${resFormType === 'video' ? 'bg-white shadow text-[#116862]' : 'text-slate-500'}`}>Vidéo</button></div></div>
+                        <div><label className="block text-xs font-bold text-slate-500 mb-1 uppercase tracking-wider">Titre</label><input value={resFormTitle} onChange={e=>setResFormTitle(e.target.value)} required className="w-full border border-slate-200 p-2.5 rounded-lg focus:ring-2 focus:ring-[#116862] outline-none" placeholder="Titre de la ressource"/></div>
                         
-                        {resFormType === 'file' && <div className="border-2 border-dashed border-slate-300 rounded-lg p-6 text-center cursor-pointer relative hover:bg-slate-50"><input type="file" className="absolute inset-0 opacity-0 cursor-pointer" onChange={(e) => {if(e.target.files && e.target.files[0]) setSelectedFile(e.target.files[0]);}} /><div className="flex flex-col items-center pointer-events-none"><UploadCloud className="text-slate-400 mb-2" size={32} /><span className="text-sm font-medium text-slate-600">{selectedFile ? selectedFile.name : (editingResourceId && resFormContent ? "Fichier actuel conservé" : "Cliquez pour sélectionner")}</span></div></div>}
+                        <div>
+                           <label className="block text-xs font-bold text-slate-500 mb-1 uppercase tracking-wider">Catégorie principale</label>
+                           <select value={resFormCategory} onChange={e=>setResFormCategory(e.target.value)} className="w-full border border-slate-200 p-2.5 rounded-lg focus:ring-2 focus:ring-[#116862] outline-none bg-white">
+                              <option>Formation</option><option>Veille</option><option>Juridique</option><option>Outil</option><option>Interne</option>
+                           </select>
+                        </div>
+
+                        <div>
+                           <label className="block text-xs font-bold text-slate-500 mb-1 uppercase tracking-wider">Mots-clés (tags)</label>
+                           <input value={resFormTags} onChange={e=>setResFormTags(e.target.value)} className="w-full border border-slate-200 p-2.5 rounded-lg focus:ring-2 focus:ring-[#116862] outline-none" placeholder="Ex: NotebookLM, slides, IA (séparés par des virgules)"/>
+                        </div>
+
+                        <div>
+                           <label className="block text-xs font-bold text-slate-500 mb-1 uppercase tracking-wider">URL de l'image (Optionnel)</label>
+                           <input value={resFormImageUrl} onChange={e=>setResFormImageUrl(e.target.value)} className="w-full border border-slate-200 p-2.5 rounded-lg focus:ring-2 focus:ring-[#116862] outline-none" placeholder="https://exemple.com/image.jpg"/>
+                           <p className="text-[10px] text-slate-400 mt-1">Si vous intégrez une image dans l'article ci-dessous, elle fera automatiquement office de couverture.</p>
+                        </div>
+
+                        <div><label className="block text-xs font-bold text-slate-500 mb-2 uppercase tracking-wider">Type de ressource</label><div className="flex bg-slate-100 p-1 rounded-lg"><button type="button" onClick={() => setResFormType('file')} className={`flex-1 py-1.5 text-xs font-medium rounded-md transition-all ${resFormType === 'file' ? 'bg-white shadow text-[#116862]' : 'text-slate-500'}`}>Fichier</button><button type="button" onClick={() => setResFormType('text')} className={`flex-1 py-1.5 text-xs font-medium rounded-md transition-all ${resFormType === 'text' ? 'bg-white shadow text-[#116862]' : 'text-slate-500'}`}>Article</button><button type="button" onClick={() => setResFormType('link')} className={`flex-1 py-1.5 text-xs font-medium rounded-md transition-all ${resFormType === 'link' ? 'bg-white shadow text-[#116862]' : 'text-slate-500'}`}>Lien</button><button type="button" onClick={() => setResFormType('video')} className={`flex-1 py-1.5 text-xs font-medium rounded-md transition-all ${resFormType === 'video' ? 'bg-white shadow text-[#116862]' : 'text-slate-500'}`}>Vidéo</button></div></div>
+                        
+                        {resFormType === 'file' && <div className="border-2 border-dashed border-slate-300 rounded-lg p-6 text-center cursor-pointer relative hover:bg-slate-50"><input type="file" className="absolute inset-0 opacity-0 cursor-pointer" onChange={(e) => {if(e.target.files && e.target.files[0]) setSelectedFile(e.target.files[0]);}} /><div className="flex flex-col items-center pointer-events-none"><UploadCloud className="text-slate-400 mb-2" size={32} /><span className="text-sm font-medium text-slate-600">{selectedFile ? selectedFile.name : (editingResourceId && resFormContent ? "Fichier actuel conservé" : "Cliquez pour sélectionner un fichier")}</span></div></div>}
                         
                         {resFormType === 'text' && (
                             <div>
-                                <label className="block text-xs font-bold text-slate-500 mb-1">Contenu de l'article</label>
+                                <label className="block text-xs font-bold text-slate-500 mb-1 uppercase tracking-wider">Contenu de l'article</label>
                                 <div className="bg-white">
-                                    <ReactQuill 
-                                        theme="snow" 
-                                        value={resFormContent || ''} 
-                                        onChange={setResFormContent} 
-                                        modules={QUILL_MODULES}
-                                        formats={QUILL_FORMATS}
-                                        className="h-64 mb-12" 
-                                    />
+                                    <ReactQuill theme="snow" value={resFormContent || ''} onChange={setResFormContent} modules={QUILL_MODULES} formats={QUILL_FORMATS} className="h-64 mb-12" />
                                 </div>
                             </div>
                         )}
                         
-                        {(resFormType === 'link' || resFormType === 'video') && <div><label className="block text-xs font-bold text-slate-500 mb-1">URL</label><input type="url" value={resFormContent} onChange={(e) => setResFormContent(e.target.value)} placeholder="https://..." className="w-full border p-2 rounded" /></div>}
-                        <div><label className="block text-xs font-bold text-slate-500 mb-1">Catégorie</label><select value={resFormCategory} onChange={e=>setResFormCategory(e.target.value)} className="w-full border p-2 rounded bg-white"><option>Formation</option><option>Veille</option><option>Juridique</option><option>Outil</option><option>Interne</option></select></div>
+                        {(resFormType === 'link' || resFormType === 'video') && <div><label className="block text-xs font-bold text-slate-500 mb-1 uppercase tracking-wider">URL de destination</label><input type="url" value={resFormContent} onChange={(e) => setResFormContent(e.target.value)} placeholder="https://..." className="w-full border border-slate-200 p-2.5 rounded-lg focus:ring-2 focus:ring-[#116862] outline-none" required /></div>}
                      </>
                   )}
 
-                  {/* --- CHAMPS STRUCTURE --- */}
+                  {/* AUTRES FORMULAIRES ... */}
                   {modalMode === 'structure' && (
                     <>
-                        <input value={structFormName} onChange={e=>setStructFormName(e.target.value)} className="w-full border p-2 rounded" placeholder="Nom Structure" required/>
-                        <input value={structFormCity} onChange={e=>setStructFormCity(e.target.value)} className="w-full border p-2 rounded" placeholder="Ville" required/>
+                        <input value={structFormName} onChange={e=>setStructFormName(e.target.value)} className="w-full border border-slate-200 p-2.5 rounded-lg focus:ring-2 focus:ring-[#116862] outline-none" placeholder="Nom Structure" required/>
+                        <input value={structFormCity} onChange={e=>setStructFormCity(e.target.value)} className="w-full border border-slate-200 p-2.5 rounded-lg focus:ring-2 focus:ring-[#116862] outline-none" placeholder="Ville" required/>
                         <div className="border-t pt-4 mt-2"><label className="flex items-center space-x-2 cursor-pointer mb-3"><input type="checkbox" checked={structFormHasCharter} onChange={e => setStructFormHasCharter(e.target.checked)} className="rounded text-[#116862] focus:ring-[#116862]" /><span className="text-sm font-bold text-slate-700">Cette structure possède une Charte IA</span></label>{structFormHasCharter && (<div className="border-2 border-dashed border-slate-300 rounded-lg p-4 text-center cursor-pointer relative hover:bg-slate-50"><input type="file" accept=".pdf,.doc,.docx" className="absolute inset-0 opacity-0 cursor-pointer" onChange={(e) => {if(e.target.files && e.target.files[0]) setSelectedFile(e.target.files[0]);}} /><div className="flex flex-col items-center pointer-events-none"><UploadCloud className="text-slate-400 mb-1" size={24} /><span className="text-xs font-medium text-slate-600">{selectedFile ? selectedFile.name : (structFormCharterUrl ? "Charte actuelle conservée" : "Cliquez pour uploader")}</span></div></div>)}</div>
                     </>
                   )}
                   
-                  {modalMode === 'domain' && <><input value={domainFormValue} onChange={e=>setDomainFormValue(e.target.value)} className="w-full border p-2 rounded" placeholder="domaine.com" required/><select value={domainFormStructure} onChange={e=>setDomainFormStructure(e.target.value)} className="w-full border p-2 rounded"><option value="">-- Structure --</option>{structures.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}</select></>}
+                  {modalMode === 'domain' && <><input value={domainFormValue} onChange={e=>setDomainFormValue(e.target.value)} className="w-full border border-slate-200 p-2.5 rounded-lg focus:ring-2 focus:ring-[#116862] outline-none" placeholder="domaine.com" required/><select value={domainFormStructure} onChange={e=>setDomainFormStructure(e.target.value)} className="w-full border border-slate-200 p-2.5 rounded-lg focus:ring-2 focus:ring-[#116862] outline-none"><option value="">-- Structure --</option>{structures.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}</select></>}
                   
-                  {/* --- CHAMPS USER --- */}
                   {modalMode === 'user' && (
                     <>
-                        <input value={userFormName} onChange={e=>setUserFormName(e.target.value)} className="w-full border p-2 rounded" placeholder="Nom"/>
-                        <input value={userFormEmail} onChange={e=>setUserFormEmail(e.target.value)} className="w-full border p-2 rounded" placeholder="Email"/>
-                        <select value={userFormRole} onChange={e=>setUserFormRole(e.target.value)} className="w-full border p-2 rounded"><option>Utilisateur</option><option>Admin</option></select>
-                        <select value={userFormStructure} onChange={e=>setUserFormStructure(e.target.value)} className="w-full border p-2 rounded"><option value="">-- Choisir une structure --</option>{structures.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select>
+                        <input value={userFormName} onChange={e=>setUserFormName(e.target.value)} className="w-full border border-slate-200 p-2.5 rounded-lg focus:ring-2 focus:ring-[#116862] outline-none" placeholder="Nom"/>
+                        <input value={userFormEmail} onChange={e=>setUserFormEmail(e.target.value)} className="w-full border border-slate-200 p-2.5 rounded-lg focus:ring-2 focus:ring-[#116862] outline-none" placeholder="Email"/>
+                        <select value={userFormRole} onChange={e=>setUserFormRole(e.target.value)} className="w-full border border-slate-200 p-2.5 rounded-lg focus:ring-2 focus:ring-[#116862] outline-none"><option>Utilisateur</option><option>Admin</option></select>
+                        <select value={userFormStructure} onChange={e=>setUserFormStructure(e.target.value)} className="w-full border border-slate-200 p-2.5 rounded-lg focus:ring-2 focus:ring-[#116862] outline-none"><option value="">-- Choisir une structure --</option>{structures.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select>
                     </>
                   )}
-                  
-                  {modalMode === 'faq' && (
-                      <p className="text-sm text-slate-500">Formulaire d'ajout de FAQ à venir...</p>
-                  )}
 
-                  <button className="bg-[#116862] text-white px-4 py-3 rounded-lg font-bold w-full hover:bg-[#0e524d] transition-colors mt-2">Valider et enregistrer</button>
+                  <button className="bg-[#116862] text-white px-4 py-3 rounded-lg font-bold w-full hover:bg-[#0e524d] transition-colors mt-2 shadow-md">Valider et enregistrer</button>
                </form>
             </div>
          </div>
