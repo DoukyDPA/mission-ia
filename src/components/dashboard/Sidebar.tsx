@@ -1,3 +1,4 @@
+// src/components/dashboard/Sidebar.tsx
 import React from 'react';
 import { 
   Menu, X, GitFork, BookOpen, Building2, Globe, Users, 
@@ -72,26 +73,39 @@ export const Sidebar = ({ user, userStructure, currentTab, setCurrentTab, isAdmi
            )}
         </nav>
 
-        <div className="px-4 mt-6">
-            <p className="text-[10px] text-slate-500 text-center mb-2 leading-tight">Anonymiseur de documents</p>
+        {/* RESTAURATION DE L'ESPACE CVFORIA */}
+        <div className="px-4 mt-6 mb-4">
+            <p className="text-[10px] text-slate-500 text-center mb-2 leading-tight font-medium">Anonymiseur de documents CVFORIA</p>
             <a href="https://solutions.silveria.fr/" target="_blank" rel="noopener noreferrer" className="flex justify-center hover:opacity-80 transition-opacity">
-                <img src="/logo-anonymiseur.png" alt="Anonymiseur" className="h-auto w-32 object-contain" />
+                <img src="/logo-anonymiseur.png" alt="CVFORIA" className="h-auto w-32 object-contain" />
             </a>
         </div>
       </div>
 
       <div className="p-4 border-t border-slate-100 bg-slate-50">
-        <div className="mb-2 px-2 hidden md:block">
+        <div className="mb-4 px-2 hidden md:block">
             <p className="text-sm font-bold text-slate-700 truncate">{user.name}</p>
-            <p className="text-[10px] text-slate-500 uppercase font-medium">
-                {user.role} {isAdmin && "• Admin"}
+            <p className="text-[10px] text-slate-500 uppercase font-medium flex items-center gap-1">
+                {user.role} {isAdmin && <ShieldCheck size={12} className="text-[#116862]"/>}
             </p>
         </div>
-        <button onClick={onLogout} className="flex items-center gap-2 text-slate-500 hover:text-red-500 mb-3 ml-2 text-xs w-full">
+        
+        <button onClick={onLogout} className="flex items-center gap-2 text-slate-500 hover:text-red-500 mb-4 ml-2 text-xs w-full md:w-auto font-medium">
             <LogOut size={14}/> Déconnexion
         </button>
-        <div className="mt-2 text-center">
-           <p className="text-[9px] text-slate-400 font-bold uppercase">Conçu par Silveria</p>
+
+        {/* RESTAURATION DU PIED DE PAGE COMPLET (Mentions, Logo Silveria, Copyright) */}
+        <div className="hidden md:flex justify-center gap-3 text-[10px] text-slate-400 border-t border-slate-200 pt-3">
+            <button onClick={() => onOpenLegal('mentions')} className="hover:text-[#116862] transition-colors">Mentions Légales</button>
+            <span>•</span>
+            <button onClick={() => onOpenLegal('privacy')} className="hover:text-[#116862] transition-colors">Confidentialité</button>
+        </div>
+        
+        <div className="mt-4 pt-3 border-t border-slate-200 text-center hidden md:block">
+           <div className="flex items-center justify-center mb-2">
+               <img src="/logo-silveria.png" alt="Silveria" className="h-5 w-auto object-contain opacity-80" />
+           </div>
+           <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">© 2026 - Silveria</p>
         </div>
       </div>
     </div>
@@ -107,13 +121,13 @@ export const Sidebar = ({ user, userStructure, currentTab, setCurrentTab, isAdmi
       
       {isMobileMenuOpen && (
         <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-sm md:hidden">
-            <div className="bg-white w-3/4 h-full shadow-xl animate-in slide-in-from-left duration-200">
-                <div className="flex justify-end p-4"><button onClick={() => setIsMobileMenuOpen(false)}><X /></button></div>
-                <div className="h-full overflow-y-auto pb-20"><MenuContent /></div>
+            <div className="bg-white w-3/4 h-full shadow-xl animate-in slide-in-from-left duration-200 flex flex-col">
+                <div className="flex justify-end p-4 border-b border-slate-100"><button onClick={() => setIsMobileMenuOpen(false)} className="text-slate-500"><X /></button></div>
+                <div className="h-full overflow-y-auto"><MenuContent /></div>
             </div>
         </div>
       )}
-      <aside className="w-64 bg-white border-r border-slate-200 hidden md:flex flex-col z-10 sticky top-0 h-screen">
+      <aside className="w-64 bg-white border-r border-slate-200 hidden md:flex flex-col z-10 sticky top-0 h-screen overflow-y-auto">
         <MenuContent />
       </aside>
     </>
