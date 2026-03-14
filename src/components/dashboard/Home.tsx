@@ -44,9 +44,7 @@ export const Home = ({ onNavigate }: HomeProps) => {
       <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
         
         <div onClick={() => onNavigate('prompts')} className="group bg-white p-6 rounded-2xl shadow-sm border border-slate-100 hover:border-[#116862]/30 hover:shadow-md transition-all cursor-pointer">
-          <div className="w-12 h-12 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center mb-5 group-hover:scale-110 transition-transform">
-            <GitFork size={24} />
-          </div>
+
           <h3 className="font-bold text-lg mb-2 text-slate-800 group-hover:text-[#116862] transition-colors">1. S'inspirer</h3>
           <p className="text-sm text-slate-500 leading-relaxed">Gagnez du temps avec nos modèles de prompts (synthèses, courriers, analyses) prêts à l'emploi.</p>
         </div>
