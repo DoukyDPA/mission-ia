@@ -16,7 +16,7 @@ import { Home } from './Home';
 import { FAQ } from './FAQ';
 import { Forum } from './Forum';
 
-// --- CONFIGURATION ÉDITEUR RICHE (React-Quill-New) ---
+// --- CONFIGURATION ÉDITEUR RICHE ---
 import 'react-quill-new/dist/quill.snow.css'; 
 const ReactQuill = dynamic(() => import('react-quill-new'), { ssr: false });
 
@@ -31,15 +31,12 @@ const QUILL_MODULES = {
 };
 
 const QUILL_FORMATS = [
-  'header',
-  'bold', 'italic', 'underline', 'strike', 'blockquote',
-  'list', 'bullet',
-  'link', 'image'
+  'header', 'bold', 'italic', 'underline', 'strike', 'blockquote', 'list', 'bullet', 'link', 'image'
 ];
 
 // Données Mock (Secours)
 const MOCK_STRUCTURES = [{ id: 1, name: "Mission Locale de Lyon", city: "Lyon" }];
-const MOCK_PROMPTS = [{ id: 1, title: "Exemple", content: "Contenu...", author: "Admin", role: "Admin", avatar: "AD", missionLocale: "National", date: "Hier", tags: ["Administratif"], likes: 0, forks: 0, isFork: false }];
+const MOCK_PROMPTS = [{ id: 1, title: "Exemple", content: "Contenu...", author: "Admin", role: "Admin", avatar: "AD", missionLocale: "National", date: "Hier", tags: ["Général"], likes: 0, forks: 0, isFork: false }];
 
 interface DashboardProps {
   user: User;
@@ -65,15 +62,18 @@ export const Dashboard = ({ user, onLogout, onOpenLegal, allowedDomains, onAllow
   const [viewingResource, setViewingResource] = useState<Resource | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   
-  const [availableCategories, setAvailableCategories] = useState(['Administratif', 'Relation Jeunes', 'Emploi', 'Direction', 'RH', 'Projets', 'Autre']);
+  // Les catégories sont initialisées à vide, elles seront remplies dynamiquement
+  const [availableCategories, setAvailableCategories] = useState<string[]>([]);
   const [selectedCategory, setSelectedCategory] = useState('Tous');
 
   // --- ÉTATS DES FORMULAIRES ---
   const [editingPromptId, setEditingPromptId] = useState<string | number | null>(null);
   const [promptFormTitle, setPromptFormTitle] = useState('');
   const [promptFormContent, setPromptFormContent] = useState('');
-  const [promptFormTag, setPromptFormTag] = useState('Administratif');
+  const [promptFormTag, setPromptFormTag] = useState('');
   const [parentPromptId, setParentPromptId] = useState<string | number | null>(null);
+  // NOUVEL ÉTAT : Permet de basculer l'affichage pour la création de catégorie
+  const [isCreatingNewTag, setIsCreatingNewTag] = useState(false);
 
   const [editingResourceId, setEditingResourceId] = useState<string | number | null>(null);
   const [resFormType, setResFormType] = useState<'file' | 'text' | 'link' | 'video'>('file');
@@ -111,9 +111,14 @@ export const Dashboard = ({ user, onLogout, onOpenLegal, allowedDomains, onAllow
         const { data: pData, error: pError } = await supabase.from('prompts').select(`*, profiles(full_name, avatar_url, role), structures(name)`).order('created_at', { ascending: false });
         if (pError) throw pError;
         if (pData) {
-            const usedTags = new Set(['Administratif', 'Relation Jeunes', 'Emploi', 'Direction', 'RH', 'Projets', 'Autre']);
+            // NOUVELLE LOGIQUE : On ne prend que les catégories réellement utilisées
+            const usedTags = new Set<string>();
             pData.forEach((p: any) => { if (p.tags && Array.isArray(p.tags)) p.tags.forEach((t: string) => usedTags.add(t)); });
-            setAvailableCategories(Array.from(usedTags).sort());
+            
+            const dynamicCategories = Array.from(usedTags).sort();
+            if (dynamicCategories.length === 0) dynamicCategories.push('Général'); // Valeur par défaut si BDD vide
+            
+            setAvailableCategories(dynamicCategories);
             
             setPrompts(pData.map((p: any) => ({
                 id: p.id, title: p.title, content: p.content, 
@@ -148,9 +153,9 @@ export const Dashboard = ({ user, onLogout, onOpenLegal, allowedDomains, onAllow
   const copyPrompt = (content: string) => { navigator.clipboard.writeText(content); alert("Prompt copié !"); };
   const deleteItem = async (table: string, id: string|number) => { if(!confirm("Supprimer ?")) return; if(supabase) { await supabase.from(table).delete().eq('id', id); await refreshData(); } };
   
-  const prepareCreatePrompt = () => { setModalMode('prompt'); setEditingPromptId(null); setPromptFormTitle(''); setPromptFormContent(''); setPromptFormTag(availableCategories[0]); setParentPromptId(null); setIsModalOpen(true); }
-  const prepareForkPrompt = (original: Prompt) => { setModalMode('prompt'); setEditingPromptId(null); setPromptFormTitle(`Variante : ${original.title}`); setPromptFormContent(original.content); setPromptFormTag(original.tags[0] || 'Administratif'); setParentPromptId(original.id); setIsModalOpen(true); }
-  const prepareEditPrompt = (original: Prompt) => { setModalMode('prompt'); setEditingPromptId(original.id); setPromptFormTitle(original.title); setPromptFormContent(original.content); setPromptFormTag(original.tags[0] || availableCategories[0]); setParentPromptId(null); setIsModalOpen(true); }
+  const prepareCreatePrompt = () => { setModalMode('prompt'); setEditingPromptId(null); setPromptFormTitle(''); setPromptFormContent(''); setPromptFormTag(availableCategories[0] || 'Général'); setParentPromptId(null); setIsCreatingNewTag(false); setIsModalOpen(true); }
+  const prepareForkPrompt = (original: Prompt) => { setModalMode('prompt'); setEditingPromptId(null); setPromptFormTitle(`Variante : ${original.title}`); setPromptFormContent(original.content); setPromptFormTag(original.tags[0] || availableCategories[0] || 'Général'); setParentPromptId(original.id); setIsCreatingNewTag(false); setIsModalOpen(true); }
+  const prepareEditPrompt = (original: Prompt) => { setModalMode('prompt'); setEditingPromptId(original.id); setPromptFormTitle(original.title); setPromptFormContent(original.content); setPromptFormTag(original.tags[0] || availableCategories[0] || 'Général'); setParentPromptId(null); setIsCreatingNewTag(false); setIsModalOpen(true); }
   
   const prepareCreateResource = () => { setModalMode('resource'); setEditingResourceId(null); setResFormTitle(''); setResFormCategory('Formation'); setResFormType('file'); setResFormContent(''); setSelectedFile(null); setIsModalOpen(true); }
   const prepareEditResource = (r: Resource) => { setModalMode('resource'); setEditingResourceId(r.id); setResFormTitle(r.title); setResFormCategory(r.category); setResFormType(r.type as any); setResFormContent(r.type === 'text' ? (r.description || '') : (r.file_url || '')); setSelectedFile(null); setIsModalOpen(true); }
@@ -164,9 +169,13 @@ export const Dashboard = ({ user, onLogout, onOpenLegal, allowedDomains, onAllow
   const handleSubmitPrompt = async () => {
     if (!supabase) { setIsModalOpen(false); return; }
     try {
-        const payload = { title: promptFormTitle, content: promptFormContent, tags: [promptFormTag] };
+        // On s'assure que le tag n'est pas vide
+        const finalTag = promptFormTag.trim() ? promptFormTag.trim() : 'Général';
+        const payload = { title: promptFormTitle, content: promptFormContent, tags: [finalTag] };
+        
         if (editingPromptId) { const { error } = await supabase.from('prompts').update(payload).eq('id', editingPromptId); if (error) throw error; } 
         else { const { data: profile } = await supabase.from('profiles').select('structure_id').eq('id', user.id).single(); const { error } = await supabase.from('prompts').insert({ ...payload, user_id: user.id, structure_id: profile?.structure_id, is_fork: !!parentPromptId, parent_id: parentPromptId }); if (error) throw error; }
+        
         await refreshData(); setIsModalOpen(false);
     } catch (err: any) { alert("Erreur : " + err.message); }
   };
@@ -214,7 +223,6 @@ export const Dashboard = ({ user, onLogout, onOpenLegal, allowedDomains, onAllow
       <Sidebar user={user} userStructure={userStructure} currentTab={currentTab} setCurrentTab={setCurrentTab} isAdmin={isAdmin} onLogout={onLogout} onOpenLegal={onOpenLegal} isMobileMenuOpen={isMobileMenuOpen} setIsMobileMenuOpen={setIsMobileMenuOpen} />
       
       <main className="flex-1 p-4 md:p-8">
-         {/* EN-TÊTE MODIFIÉ : On n'affiche plus l'en-tête générique pour l'onglet 'home' */}
          {['prompts', 'resources', 'structures', 'domains', 'assistant', 'forum', 'faq'].includes(currentTab) && (
              <div className="flex justify-between items-center mb-8">
                 <h1 className="text-2xl font-bold uppercase tracking-tight text-slate-800">
@@ -226,7 +234,6 @@ export const Dashboard = ({ user, onLogout, onOpenLegal, allowedDomains, onAllow
                      'Administration'}
                 </h1>
                 
-                {/* Bouton d'ajout générique (hors forum/faq) */}
                 {!['assistant', 'forum', 'faq'].includes(currentTab) && (
                     <button onClick={() => { 
                        if (currentTab === 'prompts') prepareCreatePrompt();
@@ -238,7 +245,6 @@ export const Dashboard = ({ user, onLogout, onOpenLegal, allowedDomains, onAllow
                     </button>
                 )}
 
-                {/* Bouton d'ajout pour la FAQ (Admin uniquement) */}
                 {currentTab === 'faq' && isAdmin && (
                     <button onClick={() => { setModalMode('faq'); setIsModalOpen(true); }} className="bg-[#116862] text-white px-4 py-2 rounded-lg flex items-center gap-2 text-sm font-bold shadow-md hover:bg-[#0e524d]">
                         <Plus size={18} /> Ajouter une Q/R
@@ -247,13 +253,10 @@ export const Dashboard = ({ user, onLogout, onOpenLegal, allowedDomains, onAllow
              </div>
          )}
 
-         {/* Contenu des onglets géré par des composants dédiés */}
          {currentTab === 'home' && <Home onNavigate={setCurrentTab} />}
          {currentTab === 'prompts' && <PromptList prompts={prompts} user={user} isAdmin={isAdmin} categories={availableCategories} selectedCategory={selectedCategory} setSelectedCategory={setSelectedCategory} onCopy={copyPrompt} onEdit={prepareEditPrompt} onDelete={(id) => deleteItem('prompts', id)} onFork={prepareForkPrompt} />}
          {currentTab === 'assistant' && <PromptAssistant />}
          {currentTab === 'resources' && <ResourceList resources={resources} isAdmin={isAdmin} onEdit={prepareEditResource} onDelete={(id) => deleteItem('resources', id)} onView={setViewingResource} />}
-         
-         {/* Nouveaux Onglets */}
          {currentTab === 'forum' && <Forum user={user} />}
          {currentTab === 'faq' && <FAQ isAdmin={isAdmin} />}
 
@@ -276,26 +279,78 @@ export const Dashboard = ({ user, onLogout, onOpenLegal, allowedDomains, onAllow
           </div>
       </Modal>
 
-      {/* MODALE D'ÉDITION ET D'AJOUT (FORMULAIRES COMPLETS) */}
+      {/* MODALE D'ÉDITION */}
       {isModalOpen && (
          <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
             <div className="bg-white rounded-xl shadow-xl w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto">
-               <div className="flex justify-between items-center mb-6"><h3 className="text-xl font-bold">Édition</h3><button onClick={() => setIsModalOpen(false)}><X /></button></div>
+               <div className="flex justify-between items-center mb-6"><h3 className="text-xl font-bold">Édition</h3><button onClick={() => setIsModalOpen(false)}><X className="text-slate-400 hover:text-slate-600" /></button></div>
                <form onSubmit={(e) => { e.preventDefault(); 
                   if(modalMode === 'prompt') handleSubmitPrompt();
                   else if(modalMode === 'resource') handleCreateResource();
                   else if(modalMode === 'structure') handleSubmitStructure();
                   else if(modalMode === 'domain') handleCreateDomain();
                   else if(modalMode === 'user') handleSubmitUser();
-                  // Le handler FAQ/Forum sera à implémenter plus tard
-               }} className="space-y-4">
+               }} className="space-y-5">
                   
-                  {/* --- CHAMPS PROMPT --- */}
+                  {/* --- CHAMPS PROMPT AVEC CATÉGORIE DYNAMIQUE --- */}
                   {modalMode === 'prompt' && (
                     <>
-                        <div><label className="block text-xs font-bold text-slate-500 mb-1">Titre</label><input value={promptFormTitle} onChange={e=>setPromptFormTitle(e.target.value)} className="w-full border p-2 rounded" placeholder="Titre" required/></div>
-                        <div><label className="block text-xs font-bold text-slate-500 mb-1">Contenu</label><textarea value={promptFormContent} onChange={e=>setPromptFormContent(e.target.value)} rows={5} className="w-full border p-2 rounded" placeholder="Contenu..." required/></div>
-                        <div><label className="block text-xs font-bold text-slate-500 mb-1">Catégorie</label><select value={promptFormTag} onChange={e=>setPromptFormTag(e.target.value)} className="w-full border p-2 rounded bg-white">{availableCategories.map(cat => <option key={cat} value={cat}>{cat}</option>)}</select></div>
+                        <div>
+                           <label className="block text-xs font-bold text-slate-500 mb-1 uppercase tracking-wider">Titre du prompt</label>
+                           <input value={promptFormTitle} onChange={e=>setPromptFormTitle(e.target.value)} className="w-full border border-slate-200 p-2.5 rounded-lg focus:ring-2 focus:ring-[#116862] outline-none" placeholder="Ex: Synthèse d'entretien..." required/>
+                        </div>
+                        
+                        <div>
+                           <label className="block text-xs font-bold text-slate-500 mb-1 uppercase tracking-wider">Catégorie</label>
+                           {!isCreatingNewTag ? (
+                              <select 
+                                 value={promptFormTag} 
+                                 onChange={e => {
+                                    if (e.target.value === '__NEW__') {
+                                       setIsCreatingNewTag(true);
+                                       setPromptFormTag('');
+                                    } else {
+                                       setPromptFormTag(e.target.value);
+                                    }
+                                 }} 
+                                 className="w-full border border-slate-200 p-2.5 rounded-lg focus:ring-2 focus:ring-[#116862] outline-none bg-white cursor-pointer"
+                              >
+                                 {availableCategories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
+                                 <option disabled>──────────</option>
+                                 <option value="__NEW__" className="font-bold text-[#116862]">➕ Créer une nouvelle catégorie...</option>
+                              </select>
+                           ) : (
+                              <div className="flex gap-2">
+                                 <input 
+                                    type="text" 
+                                    value={promptFormTag} 
+                                    onChange={e => setPromptFormTag(e.target.value)} 
+                                    placeholder="Nom de la nouvelle catégorie..." 
+                                    className="w-full border border-slate-200 p-2.5 rounded-lg focus:ring-2 focus:ring-[#116862] outline-none"
+                                    autoFocus
+                                    required
+                                 />
+                                 <button 
+                                    type="button" 
+                                    onClick={() => {
+                                       setIsCreatingNewTag(false);
+                                       setPromptFormTag(availableCategories[0] || 'Général');
+                                    }} 
+                                    className="bg-slate-100 text-slate-600 px-4 rounded-lg hover:bg-slate-200 transition-colors text-sm font-medium"
+                                 >
+                                    Annuler
+                                 </button>
+                              </div>
+                           )}
+                           <p className="text-[10px] text-slate-400 mt-1.5">
+                              {isCreatingNewTag ? "Saisissez un nom explicite (ex: Administratif, Ateliers...)" : "Choisissez une catégorie existante ou créez-en une nouvelle."}
+                           </p>
+                        </div>
+
+                        <div>
+                           <label className="block text-xs font-bold text-slate-500 mb-1 uppercase tracking-wider">Instructions (Contenu)</label>
+                           <textarea value={promptFormContent} onChange={e=>setPromptFormContent(e.target.value)} rows={7} className="w-full border border-slate-200 p-2.5 rounded-lg focus:ring-2 focus:ring-[#116862] outline-none font-mono text-sm" placeholder="Agis comme un conseiller expert en insertion. Rédige une synthèse..." required/>
+                        </div>
                     </>
                   )}
 
@@ -353,7 +408,7 @@ export const Dashboard = ({ user, onLogout, onOpenLegal, allowedDomains, onAllow
                       <p className="text-sm text-slate-500">Formulaire d'ajout de FAQ à venir...</p>
                   )}
 
-                  <button className="bg-[#116862] text-white px-4 py-2 rounded font-bold w-full">Valider</button>
+                  <button className="bg-[#116862] text-white px-4 py-3 rounded-lg font-bold w-full hover:bg-[#0e524d] transition-colors mt-2">Valider et enregistrer</button>
                </form>
             </div>
          </div>
