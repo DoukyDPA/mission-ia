@@ -11,14 +11,14 @@ interface ResourceListProps {
   onView: (r: Resource) => void;
 }
 
-// Extrait la première image d'un article (ReactQuill)
+// Extrait la première image d'un article
 const getFirstImageFromHtml = (html?: string) => {
   if (!html) return null;
   const match = html.match(/<img[^>]+src="([^">]+)"/);
   return match ? match[1] : null;
 };
 
-// Petite astuce pour récupérer la miniature d'une vidéo YouTube automatiquement
+// Récupère la miniature YouTube
 const getYoutubeThumbnail = (url?: string) => {
     if (!url) return null;
     const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
@@ -29,10 +29,27 @@ const getYoutubeThumbnail = (url?: string) => {
     return null;
 };
 
+// NOUVELLE FONCTION ULTRA-ROBUSTE POUR NETTOYER LE TEXTE
+const getSnippet = (html?: string) => {
+    if (!html) return "Aucun extrait disponible.";
+    
+    // 1. On décode les entités au cas où elles seraient échappées par l'éditeur
+    let text = html.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&').replace(/&quot;/g, '"');
+    
+    // 2. On supprime toutes les balises HTML
+    text = text.replace(/<[^>]+>/g, ' ');
+    
+    // 3. On nettoie les espaces insécables (&nbsp;) et les entités restantes
+    text = text.replace(/&nbsp;/g, ' ').replace(/&[a-z0-9#]+;/gi, '');
+    
+    // 4. On supprime les espaces multiples et on coupe proprement
+    return text.replace(/\s+/g, ' ').trim();
+};
+
 export const ResourceList = ({ resources, isAdmin, onEdit, onDelete, onView }: ResourceListProps) => {
    const [searchTerm, setSearchTerm] = useState('');
    
-   // 1. RECHERCHE GLOBALE (Titre, description, mots-clés)
+   // RECHERCHE GLOBALE
    const filtered = resources.filter(r => {
        const searchLower = searchTerm.toLowerCase();
        const matchTitle = r.title.toLowerCase().includes(searchLower);
@@ -41,13 +58,13 @@ export const ResourceList = ({ resources, isAdmin, onEdit, onDelete, onView }: R
        return matchTitle || matchDesc || matchTags;
    });
 
-   // 2. SÉPARATION PAR CATÉGORIES DE MÉDIAS
+   // SÉPARATION PAR CATÉGORIES DE MÉDIAS
    const articles = filtered.filter(r => r.type === 'text');
    const videos = filtered.filter(r => r.type === 'video');
    const documents = filtered.filter(r => r.type === 'file' || r.type === 'pdf');
    const links = filtered.filter(r => r.type === 'link');
 
-   // Composant interne pour les boutons d'administration (Éditer / Supprimer)
+   // Composant interne pour les boutons d'administration
    const AdminActions = ({ resource }: { resource: Resource }) => {
        if (!isAdmin) return null;
        return (
@@ -106,7 +123,6 @@ export const ResourceList = ({ resources, isAdmin, onEdit, onDelete, onView }: R
                                 )}
                                 
                                 <div className="p-5 flex flex-col flex-1">
-                                    {/* Mots Clés */}
                                     <div className="flex flex-wrap gap-1.5 mb-3">
                                         <span className="px-2 py-0.5 bg-[#116862]/10 text-[#116862] text-[10px] font-bold uppercase tracking-wider rounded">
                                             {article.category}
@@ -122,8 +138,9 @@ export const ResourceList = ({ resources, isAdmin, onEdit, onDelete, onView }: R
                                         {article.title}
                                     </h3>
                                     
+                                    {/* UTILISATION DE LA NOUVELLE FONCTION ICI */}
                                     <p className="text-sm text-slate-500 line-clamp-3 mb-4">
-                                        {article.description?.replace(/<[^>]*>?/gm, '') || "Aucun extrait disponible."}
+                                        {getSnippet(article.description)}
                                     </p>
                                     
                                     <div className="mt-auto pt-4 flex items-center justify-between border-t border-slate-50">
@@ -153,7 +170,6 @@ export const ResourceList = ({ resources, isAdmin, onEdit, onDelete, onView }: R
                 </h2>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     {videos.map(video => {
-                        // Tente de récupérer la miniature YouTube, sinon utilise l'image fournie
                         const videoThumb = getYoutubeThumbnail(video.file_url) || video.image_url;
                         return (
                             <div key={video.id} className="bg-white rounded-xl shadow-sm border border-slate-200 flex flex-col hover:border-amber-500/40 hover:shadow-md transition-all group overflow-hidden">
