@@ -1,6 +1,6 @@
 // src/components/auth/LoginPage.tsx
 import React, { useState } from 'react';
-import { Users, Lock, Globe, Building2, AlertCircle } from 'lucide-react';
+import { Users, Lock, Building2, AlertCircle, ArrowLeft } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { User, AllowedDomain } from '@/types';
 
@@ -14,7 +14,8 @@ export const LoginPage = ({ onLogin, onOpenLegal, allowedDomains }: LoginPagePro
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
-  const [mode, setMode] = useState<'login' | 'register'>('login');
+  // Ajout du mode 'forgot' pour le mot de passe oublié
+  const [mode, setMode] = useState<'login' | 'register' | 'forgot'>('login');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [infoMessage, setInfoMessage] = useState('');
@@ -29,9 +30,8 @@ export const LoginPage = ({ onLogin, onOpenLegal, allowedDomains }: LoginPagePro
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true); setError('');
+    setLoading(true); setError(''); setInfoMessage('');
     
-    // CORRECTION : Vérification que supabase existe
     if (!supabase) {
         setError("Le service d'authentification n'est pas disponible.");
         setLoading(false);
@@ -54,7 +54,7 @@ export const LoginPage = ({ onLogin, onOpenLegal, allowedDomains }: LoginPagePro
              email: data.user.email || '',
              name: profile?.full_name || email.split('@')[0],
              role: profile?.role || 'Conseiller',
-             missionLocale: profile?.structures?.name || 'National',
+             missionLocale: profile?.structures?.name || 'Visiteur / Test',
              avatar: (profile?.full_name || 'U').substring(0, 2).toUpperCase(),
              structure_id: profile?.structure_id
         });
@@ -68,7 +68,7 @@ export const LoginPage = ({ onLogin, onOpenLegal, allowedDomains }: LoginPagePro
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!detectedStructure || !supabase) return; // Sécurité ajoutée ici aussi
+    if (!supabase) return; 
     
     setLoading(true); setError(''); setInfoMessage('');
 
@@ -79,7 +79,8 @@ export const LoginPage = ({ onLogin, onOpenLegal, allowedDomains }: LoginPagePro
         options: { 
             data: { 
                 full_name: fullName, 
-                structure_id: detectedStructure.structure_id 
+                // S'il n'y a pas de structure, on envoie null (mode découverte)
+                structure_id: detectedStructure ? detectedStructure.structure_id : null 
             } 
         } 
       });
@@ -89,10 +90,33 @@ export const LoginPage = ({ onLogin, onOpenLegal, allowedDomains }: LoginPagePro
       setInfoMessage("Compte créé avec succès ! Veuillez consulter vos emails pour valider votre inscription (vérifiez également vos courriers indésirables).");
       setMode('login');
     } catch (err: any) { 
-        setError(err.message); 
+        setError("Erreur lors de l'inscription : " + err.message); 
     } finally { 
         setLoading(false); 
     }
+  };
+
+  // NOUVELLE FONCTION : Réinitialisation du mot de passe
+  const handleResetPassword = async (e: React.FormEvent) => {
+      e.preventDefault();
+      if (!supabase) return;
+
+      setLoading(true); setError(''); setInfoMessage('');
+
+      try {
+          const { error } = await supabase.auth.resetPasswordForEmail(email, {
+              // Redirige vers l'accueil de l'app (Supabase gérera le token dans l'URL)
+              redirectTo: `${window.location.origin}/`, 
+          });
+          if (error) throw error;
+          
+          setInfoMessage("Si cette adresse correspond à un compte existant, un lien de réinitialisation vous a été envoyé.");
+          setMode('login');
+      } catch (err: any) {
+          setError("Erreur : " + err.message);
+      } finally {
+          setLoading(false);
+      }
   };
 
   return (
@@ -103,32 +127,75 @@ export const LoginPage = ({ onLogin, onOpenLegal, allowedDomains }: LoginPagePro
         </h1>
         <p className="text-center text-slate-500 mb-6 text-sm">IAMESRESSOURCES : plateforme de ressources et prompts</p>
         
-        <div className="flex justify-center gap-2 mb-6 bg-slate-100 p-1 rounded-lg">
-          <button onClick={() => {setMode('login'); setError('');}} className={`flex-1 text-sm font-semibold px-4 py-2 rounded-md transition-all ${mode === 'login' ? 'bg-white text-[#116862] shadow-sm' : 'text-slate-500'}`}>Connexion</button>
-          <button onClick={() => {setMode('register'); setError('');}} className={`flex-1 text-sm font-semibold px-4 py-2 rounded-md transition-all ${mode === 'register' ? 'bg-white text-[#116862] shadow-sm' : 'text-slate-500'}`}>Inscription</button>
-        </div>
+        {/* On masque les boutons de navigation si on est sur la vue 'mot de passe oublié' */}
+        {mode !== 'forgot' && (
+            <div className="flex justify-center gap-2 mb-6 bg-slate-100 p-1 rounded-lg">
+              <button onClick={() => {setMode('login'); setError(''); setInfoMessage('');}} className={`flex-1 text-sm font-semibold px-4 py-2 rounded-md transition-all ${mode === 'login' ? 'bg-white text-[#116862] shadow-sm' : 'text-slate-500'}`}>Connexion</button>
+              <button onClick={() => {setMode('register'); setError(''); setInfoMessage('');}} className={`flex-1 text-sm font-semibold px-4 py-2 rounded-md transition-all ${mode === 'register' ? 'bg-white text-[#116862] shadow-sm' : 'text-slate-500'}`}>Inscription</button>
+            </div>
+        )}
+
+        {mode === 'forgot' && (
+            <div className="mb-6">
+                <button onClick={() => {setMode('login'); setError(''); setInfoMessage('');}} className="text-sm font-semibold text-slate-500 hover:text-[#116862] flex items-center gap-1 mb-4 transition-colors">
+                    <ArrowLeft size={16} /> Retour à la connexion
+                </button>
+                <h2 className="font-bold text-slate-800">Mot de passe oublié ?</h2>
+                <p className="text-xs text-slate-500 mt-1">Saisissez votre email professionnel pour recevoir un lien de réinitialisation.</p>
+            </div>
+        )}
 
         {error && <div className="bg-red-50 text-red-600 p-3 rounded-lg text-sm mb-4 flex items-center gap-2"><AlertCircle size={16}/> {error}</div>}
         {infoMessage && <div className="bg-emerald-50 text-emerald-700 p-3 rounded-lg text-sm mb-4 border border-emerald-100">{infoMessage}</div>}
 
-        <form onSubmit={mode === 'login' ? handleLogin : handleRegister} className="space-y-4">
+        <form onSubmit={mode === 'login' ? handleLogin : mode === 'register' ? handleRegister : handleResetPassword} className="space-y-4">
+          
           {mode === 'register' && (
             <div><label className="block text-xs font-bold text-slate-500 mb-1">Nom complet</label><div className="relative"><Users className="absolute left-3 top-2.5 text-slate-400" size={18} /><input value={fullName} onChange={e => setFullName(e.target.value)} className="w-full pl-10 p-2.5 border rounded-lg outline-none focus:ring-2 focus:ring-[#116862]" required placeholder="Prénom Nom" /></div></div>
           )}
           
-          <div><label className="block text-xs font-bold text-slate-500 mb-1">Email professionnel</label><div className="relative"><Users className="absolute left-3 top-2.5 text-slate-400" size={18} /><input type="email" value={email} onChange={e => setEmail(e.target.value)} className="w-full pl-10 p-2.5 border rounded-lg outline-none focus:ring-2 focus:ring-[#116862]" required placeholder="nom@missionlocale.fr" /></div></div>
+          <div>
+              <label className="block text-xs font-bold text-slate-500 mb-1">Email professionnel</label>
+              <div className="relative">
+                  <Users className="absolute left-3 top-2.5 text-slate-400" size={18} />
+                  <input type="email" value={email} onChange={e => setEmail(e.target.value)} className="w-full pl-10 p-2.5 border rounded-lg outline-none focus:ring-2 focus:ring-[#116862]" required placeholder="nom@missionlocale.fr" />
+              </div>
+          </div>
           
+          {/* Affichage des domaines revu pour inclure le mode découverte */}
           {mode === 'register' && email.includes('@') && (
-              <div className={`text-xs p-2 rounded flex items-center gap-2 ${detectedStructure ? 'text-emerald-600 bg-emerald-50' : 'text-amber-600 bg-amber-50'}`}>
+              <div className={`text-xs p-2.5 rounded flex items-center gap-2 ${detectedStructure ? 'text-emerald-700 bg-emerald-50 border border-emerald-100' : 'text-sky-700 bg-sky-50 border border-sky-100'}`}>
                   <Building2 size={14}/>
-                  {detectedStructure ? `Structure détectée : ${detectedStructure.structure_name}` : "Domaine non autorisé."}
+                  {detectedStructure ? (
+                      <span><strong>Structure identifiée :</strong> {detectedStructure.structure_name}</span>
+                  ) : (
+                      <span><strong>Mode Découverte :</strong> Domaine non affilié. Accès limité aux fonctionnalités publiques.</span>
+                  )}
               </div>
           )}
 
-          <div><label className="block text-xs font-bold text-slate-500 mb-1">Mot de passe</label><div className="relative"><Lock className="absolute left-3 top-2.5 text-slate-400" size={18} /><input type="password" value={password} onChange={e => setPassword(e.target.value)} className="w-full pl-10 p-2.5 border rounded-lg outline-none focus:ring-2 focus:ring-[#116862]" required placeholder="••••••••" /></div></div>
+          {mode !== 'forgot' && (
+              <div>
+                  <div className="flex justify-between items-center mb-1">
+                      <label className="block text-xs font-bold text-slate-500">Mot de passe</label>
+                      {mode === 'login' && (
+                          <button type="button" onClick={() => {setMode('forgot'); setError(''); setInfoMessage('');}} className="text-[10px] font-bold text-[#116862] hover:underline">
+                              Oublié ?
+                          </button>
+                      )}
+                  </div>
+                  <div className="relative">
+                      <Lock className="absolute left-3 top-2.5 text-slate-400" size={18} />
+                      <input type="password" value={password} onChange={e => setPassword(e.target.value)} className="w-full pl-10 p-2.5 border rounded-lg outline-none focus:ring-2 focus:ring-[#116862]" required placeholder="••••••••" />
+                  </div>
+              </div>
+          )}
           
-          <button disabled={loading || (mode === 'register' && !detectedStructure)} className="w-full bg-[#116862] text-white font-bold py-2.5 rounded-lg hover:bg-[#0e524d] disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-md shadow-[#116862]/20">
-              {loading ? 'Chargement...' : (mode === 'login' ? 'Se connecter' : "S'inscrire")}
+          <button disabled={loading} className="w-full bg-[#116862] text-white font-bold py-2.5 rounded-lg hover:bg-[#0e524d] disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-md mt-2">
+              {loading ? 'Veuillez patienter...' : 
+               mode === 'login' ? 'Se connecter' : 
+               mode === 'register' ? "S'inscrire" : 
+               "Envoyer le lien"}
           </button>
         </form>
       </div>
