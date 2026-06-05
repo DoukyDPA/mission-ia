@@ -5,6 +5,7 @@ import { Plus, X, UploadCloud } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { User, AllowedDomain, Prompt, Resource, Structure } from '@/types';
 import { Modal } from '@/components/ui/Modal';
+import { sanitizeHtml } from '@/lib/sanitize';
 
 import { Sidebar } from './Sidebar';
 import { PromptList } from './PromptList';
@@ -79,7 +80,8 @@ export const Dashboard = ({ user, onLogout, onOpenLegal, allowedDomains, onAllow
   const isAdmin = (user.role || '').trim().toLowerCase() === 'admin';
   const userStructure = structures.find(s => s.id == user.structure_id) || null;
   
-  const cleanHtmlContent = (html: string) => { return html ? html.replace(/style="[^"]*"/g, "").replace(/&nbsp;/g, " ") : ""; };
+  // Sanitisation stricte (DOMPurify) avant tout dangerouslySetInnerHTML.
+  const cleanHtmlContent = (html: string) => sanitizeHtml(html);
 
   const refreshData = useCallback(async () => {
     if (!supabase) return; 

@@ -1,6 +1,7 @@
 // src/components/dashboard/PromptAssistant.tsx
 import React, { useState } from 'react';
 import { Sparkles, Copy, Loader2, Image as ImageIcon, FileText, Info } from 'lucide-react';
+import { supabase } from '@/lib/supabase';
 
 export const PromptAssistant = () => {
   const [promptType, setPromptType] = useState<'text' | 'image'>('text');
@@ -15,19 +16,32 @@ export const PromptAssistant = () => {
     setOptimizedPrompt('');
 
     try {
+      // On récupère le jeton de session pour authentifier l'appel côté serveur.
+      const { data: { session } } = supabase
+        ? await supabase.auth.getSession()
+        : { data: { session: null } };
+
+      if (!session) {
+        alert('Session expirée. Reconnecte-toi pour utiliser le laboratoire de prompts.');
+        return;
+      }
+
       const response = await fetch('/api/optimize-prompt', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+        },
         body: JSON.stringify({ intention: humanIntention, type: promptType }),
       });
 
       const data = await response.json();
-      
-      if (!response.ok) throw new Error(data.error);
-      
+
+      if (!response.ok) throw new Error(data.error || 'Erreur inconnue');
+
       setOptimizedPrompt(data.optimizedPrompt);
     } catch (error) {
-      alert("Erreur lors de l'optimisation. Vérifiez la connexion ou la clé API.");
+      alert("Erreur lors de l'optimisation. Réessaie dans un instant.");
       console.error(error);
     } finally {
       setIsOptimizing(false);
