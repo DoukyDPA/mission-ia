@@ -1,7 +1,7 @@
 // src/components/dashboard/Sidebar.tsx
 import React from 'react';
 import { 
-  Menu, X, GitFork, BookOpen, Building2, Globe, Users, 
+  Menu, X, GitFork, Radio, Building2, Globe, Users, 
   LogOut, ShieldCheck, FileText, Sparkles, Home as HomeIcon,
   MessageSquare, HelpCircle
 } from 'lucide-react';
@@ -37,12 +37,12 @@ export const Sidebar = ({ user, userStructure, currentTab, setCurrentTab, isAdmi
 
         <nav className="p-4 space-y-1">
            <SidebarItem icon={HomeIcon} label="Accueil" active={currentTab === 'home'} onClick={() => { setCurrentTab('home'); setIsMobileMenuOpen(false); }} />
-           
+
+           <SidebarItem icon={Radio} label="Veille & Ressources" active={currentTab === 'resources'} onClick={() => { setCurrentTab('resources'); setIsMobileMenuOpen(false); }} />
+
            <SidebarItem icon={GitFork} label="Promptothèque" active={currentTab === 'prompts'} onClick={() => { setCurrentTab('prompts'); setIsMobileMenuOpen(false); }} />
-           
+
            <SidebarItem icon={Sparkles} label="Labo Prompts" active={currentTab === 'assistant'} onClick={() => { setCurrentTab('assistant'); setIsMobileMenuOpen(false); }} />
-           
-           <SidebarItem icon={BookOpen} label="Ressources & Veille" active={currentTab === 'resources'} onClick={() => { setCurrentTab('resources'); setIsMobileMenuOpen(false); }} />
 
            <div className="mt-6 mb-2 px-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest pt-4 border-t border-slate-100">Entraide</div>
            

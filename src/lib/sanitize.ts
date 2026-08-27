@@ -13,9 +13,27 @@ const ALLOWED_TAGS = [
 
 const ALLOWED_ATTR = ['href', 'target', 'rel'];
 
+// Caractères invisibles que les sites sources glissent dans leur HTML et que
+// le navigateur traite comme des points de césure. C'est ce qui coupait les
+// mots en plein milieu ("int / erne", "conditio / ns") dans les articles.
+//   U+00AD trait d'union conditionnel
+//   U+200B espace de largeur nulle
+//   U+200C, U+200D liants de largeur nulle
+//   U+2060 gluon de mots
+//   U+FEFF marque d'ordre des octets
+const INVISIBLE_BREAKS = /[\u00AD\u200B\u200C\u200D\u2060\uFEFF]/g;
+
+// Balise <wbr> : même effet, point de coupure explicite.
+const WBR_TAG = /<\s*wbr\s*\/?\s*>/gi;
+
+export function stripInvisibleBreaks(text: string): string {
+  if (!text) return '';
+  return text.replace(WBR_TAG, '').replace(INVISIBLE_BREAKS, '');
+}
+
 export function sanitizeHtml(html: string): string {
   if (!html) return '';
-  return DOMPurify.sanitize(html, {
+  return DOMPurify.sanitize(stripInvisibleBreaks(html), {
     ALLOWED_TAGS,
     ALLOWED_ATTR,
     // Bloque javascript:, data: et autres schémas dangereux dans les href.

@@ -194,11 +194,11 @@ export const Dashboard = ({ user, onLogout, onOpenLegal, allowedDomains, onAllow
     <div className="min-h-screen bg-slate-50 font-sans text-slate-900 flex flex-col md:flex-row">
       <Sidebar user={user} userStructure={userStructure} currentTab={currentTab} setCurrentTab={setCurrentTab} isAdmin={isAdmin} onLogout={onLogout} onOpenLegal={onOpenLegal} isMobileMenuOpen={isMobileMenuOpen} setIsMobileMenuOpen={setIsMobileMenuOpen} />
       
-      <main className="flex-1 p-4 md:p-8">
+      <main className="flex-1 min-w-0 p-4 md:p-8">
          {['prompts', 'resources', 'structures', 'domains', 'assistant', 'forum', 'faq'].includes(currentTab) && (
              <div className="flex justify-between items-center mb-8">
                 <h1 className="text-2xl font-bold uppercase tracking-tight text-slate-800">
-                    {currentTab === 'prompts' ? 'Promptothèque' : currentTab === 'assistant' ? 'Laboratoire de Prompts' : currentTab === 'resources' ? 'Ressources & Veille' : currentTab === 'forum' ? 'Forum' : currentTab === 'faq' ? 'Foire aux questions' : 'Administration'}
+                    {currentTab === 'prompts' ? 'Promptothèque' : currentTab === 'assistant' ? 'Laboratoire de Prompts' : currentTab === 'resources' ? 'Veille & Ressources' : currentTab === 'forum' ? 'Forum' : currentTab === 'faq' ? 'Foire aux questions' : 'Administration'}
                 </h1>
                 
                 {!['assistant', 'forum', 'faq'].includes(currentTab) && (
@@ -219,7 +219,7 @@ export const Dashboard = ({ user, onLogout, onOpenLegal, allowedDomains, onAllow
              </div>
          )}
 
-         {currentTab === 'home' && <Home onNavigate={setCurrentTab} />}
+         {currentTab === 'home' && <Home onNavigate={setCurrentTab} resources={resources} onViewResource={setViewingResource} />}
          {currentTab === 'prompts' && <PromptList prompts={prompts} user={user} isAdmin={isAdmin} categories={availableCategories} selectedCategory={selectedCategory} setSelectedCategory={setSelectedCategory} onCopy={copyPrompt} onEdit={prepareEditPrompt} onDelete={(id) => deleteItem('prompts', id)} onFork={prepareForkPrompt} />}
          {currentTab === 'assistant' && <PromptAssistant />}
          {currentTab === 'resources' && <ResourceList resources={resources} isAdmin={isAdmin} onEdit={prepareEditResource} onDelete={(id) => deleteItem('resources', id)} onView={setViewingResource} />}
@@ -229,10 +229,10 @@ export const Dashboard = ({ user, onLogout, onOpenLegal, allowedDomains, onAllow
          {(currentTab === 'structures' || currentTab === 'users' || currentTab === 'domains') && <AdminPanel currentTab={currentTab} structures={structures} users={adminUsers} domains={allowedDomains} onAdd={() => { if(currentTab==='structures') prepareCreateStructure(); else if(currentTab==='domains') {setModalMode('domain'); setIsModalOpen(true);} }} onDelete={deleteItem} onEditUser={prepareEditUser} onEditStructure={prepareEditStructure} onInviteUser={prepareInviteUser} />}
       </main>
 
-      <Modal isOpen={!!viewingResource} onClose={() => setViewingResource(null)} title={viewingResource?.title || 'Lecture'}>
+      <Modal isOpen={!!viewingResource} onClose={() => setViewingResource(null)} title={viewingResource?.title || 'Lecture'} wide>
           <div className="w-full">
               <div 
-                 className="prose prose-sm prose-slate max-w-none text-slate-800 !whitespace-normal !break-words [&_*]:!whitespace-normal [&_*]:!break-words [&_*]:!max-w-full [&_img]:!max-w-full [&_img]:!h-auto [&_img]:rounded-lg [&_img]:my-4 [&_p]:mb-3 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5"
+                 className="article-content"
                  dangerouslySetInnerHTML={{ __html: cleanHtmlContent(viewingResource?.description || '') }}
               />
           </div>

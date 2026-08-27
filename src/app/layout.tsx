@@ -24,7 +24,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="fr"> {/* J'ai aussi passé la langue en français */}
+    <html lang="fr">{/* J'ai aussi passé la langue en français */}
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >

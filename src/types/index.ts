@@ -30,8 +30,16 @@ export interface Resource {
   file_url?: string; 
   description?: string; 
   uploaded_by?: string | number; 
-  tags?: string[];      // <-- NOUVEAU
-  image_url?: string;   // <-- NOUVEAU
+  tags?: string[];
+  image_url?: string;
+  // Timestamp brut conservé : le champ `date` est déjà formaté pour
+  // l'affichage, il ne permet ni tri ni filtre par période.
+  created_at?: string;
+  // Portée du contenu, déjà présente en base mais jamais exploitée.
+  //   'global'    : socle commun, visible de toutes les entités
+  //   'structure' : réservé à target_structure_id
+  access_scope?: 'global' | 'structure';
+  target_structure_id?: string | number | null;
 }
 
 export interface Prompt { 
