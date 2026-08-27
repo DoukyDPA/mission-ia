@@ -5,7 +5,7 @@ import { Plus, X, UploadCloud } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { User, AllowedDomain, Prompt, Resource, Structure } from '@/types';
 import { Modal } from '@/components/ui/Modal';
-import { sanitizeHtml } from '@/lib/sanitize';
+import { sanitizeHtml, stripInvisibleBreaks } from '@/lib/sanitize';
 
 import { Sidebar } from './Sidebar';
 import { PromptList } from './PromptList';
@@ -163,7 +163,7 @@ export const Dashboard = ({ user, onLogout, onOpenLegal, allowedDomains, onAllow
             title: resFormTitle, file_type: resFormType, category: resFormCategory, 
             tags: tagsArray, image_url: resFormImageUrl || null,
             access_scope: 'global', target_structure_id: null, file_url: finalUrl, 
-            description: resFormType === 'text' ? resFormContent : '', uploaded_by: user.id 
+            description: resFormType === 'text' ? stripInvisibleBreaks(resFormContent) : '', uploaded_by: user.id 
         };
         
         if (editingResourceId) { await supabase.from('resources').update(payload).eq('id', editingResourceId); } 
