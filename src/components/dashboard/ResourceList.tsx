@@ -64,6 +64,7 @@ export const ResourceList = ({ resources, isAdmin, onEdit, onDelete, onView }: R
         r.title?.toLowerCase().includes(q) ||
         r.category?.toLowerCase().includes(q) ||
         getSnippet(r.description).toLowerCase().includes(q) ||
+        r.summary?.toLowerCase().includes(q) ||
         r.tags?.some(t => t.toLowerCase().includes(q))
       );
     });

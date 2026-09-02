@@ -22,6 +22,10 @@ const ReactQuill = dynamic(() => import('react-quill-new'), { ssr: false });
 const QUILL_MODULES = { toolbar: [ [{ 'header': [1, 2, false] }], ['bold', 'italic', 'underline', 'strike', 'blockquote'], [{'list': 'ordered'}, {'list': 'bullet'}], ['link', 'image'], ['clean'] ] };
 const QUILL_FORMATS = [ 'header', 'bold', 'italic', 'underline', 'strike', 'blockquote', 'list', 'bullet', 'link', 'image' ];
 
+// Longueur du résumé affiché sur les cartes de la veille. Au-delà, le bloc
+// déplié prend plus de place que la vignette qu'il accompagne.
+const RESUME_MAX = 600;
+
 interface DashboardProps {
   user: User;
   onLogout: () => void;
@@ -61,6 +65,7 @@ export const Dashboard = ({ user, onLogout, onOpenLegal, allowedDomains, onAllow
   const [resFormCategory, setResFormCategory] = useState('Formation');
   const [resFormTags, setResFormTags] = useState('');
   const [resFormImageUrl, setResFormImageUrl] = useState('');
+  const [resFormSummary, setResFormSummary] = useState('');
 
   const [editingUserId, setEditingUserId] = useState<string | number | null>(null);
   const [userFormEmail, setUserFormEmail] = useState('');
@@ -130,8 +135,8 @@ export const Dashboard = ({ user, onLogout, onOpenLegal, allowedDomains, onAllow
   const prepareForkPrompt = (original: Prompt) => { setModalMode('prompt'); setEditingPromptId(null); setPromptFormTitle(`Variante : ${original.title}`); setPromptFormContent(original.content); setPromptFormTag(original.tags[0] || availableCategories[0] || 'Général'); setParentPromptId(original.id); setIsCreatingNewTag(false); setIsModalOpen(true); }
   const prepareEditPrompt = (original: Prompt) => { setModalMode('prompt'); setEditingPromptId(original.id); setPromptFormTitle(original.title); setPromptFormContent(original.content); setPromptFormTag(original.tags[0] || availableCategories[0] || 'Général'); setParentPromptId(null); setIsCreatingNewTag(false); setIsModalOpen(true); }
   
-  const prepareCreateResource = () => { setModalMode('resource'); setEditingResourceId(null); setResFormTitle(''); setResFormCategory('Veille'); setResFormTags(''); setResFormImageUrl(''); setResFormType('file'); setResFormContent(''); setSelectedFile(null); setIsModalOpen(true); }
-  const prepareEditResource = (r: Resource) => { setModalMode('resource'); setEditingResourceId(r.id); setResFormTitle(r.title); setResFormCategory(r.category); setResFormTags(r.tags?.join(', ') || ''); setResFormImageUrl(r.image_url || ''); setResFormType(r.type as any); setResFormContent(r.type === 'text' ? (r.description || '') : (r.file_url || '')); setSelectedFile(null); setIsModalOpen(true); }
+  const prepareCreateResource = () => { setModalMode('resource'); setEditingResourceId(null); setResFormTitle(''); setResFormCategory('Veille'); setResFormTags(''); setResFormImageUrl(''); setResFormSummary(''); setResFormType('file'); setResFormContent(''); setSelectedFile(null); setIsModalOpen(true); }
+  const prepareEditResource = (r: Resource) => { setModalMode('resource'); setEditingResourceId(r.id); setResFormTitle(r.title); setResFormCategory(r.category); setResFormTags(r.tags?.join(', ') || ''); setResFormImageUrl(r.image_url || ''); setResFormSummary(r.summary || ''); setResFormType(r.type as any); setResFormContent(r.type === 'text' ? (r.description || '') : (r.file_url || '')); setSelectedFile(null); setIsModalOpen(true); }
   
   const prepareCreateStructure = () => { setModalMode('structure'); setEditingStructureId(null); setStructFormName(''); setStructFormCity(''); setStructFormHasCharter(false); setStructFormCharterUrl(''); setSelectedFile(null); setIsModalOpen(true); }
   const prepareEditStructure = (s: Structure) => { setModalMode('structure'); setEditingStructureId(s.id); setStructFormName(s.name); setStructFormCity(s.city); setStructFormHasCharter(s.has_charter || false); setStructFormCharterUrl(s.charter_url || ''); setSelectedFile(null); setIsModalOpen(true); }
@@ -162,6 +167,7 @@ export const Dashboard = ({ user, onLogout, onOpenLegal, allowedDomains, onAllow
         const payload = { 
             title: resFormTitle, file_type: resFormType, category: resFormCategory, 
             tags: tagsArray, image_url: resFormImageUrl || null,
+            summary: resFormSummary.trim() ? stripInvisibleBreaks(resFormSummary.trim()) : null,
             access_scope: 'global', target_structure_id: null, file_url: finalUrl, 
             description: resFormType === 'text' ? stripInvisibleBreaks(resFormContent) : '', uploaded_by: user.id 
         };
@@ -293,6 +299,26 @@ export const Dashboard = ({ user, onLogout, onOpenLegal, allowedDomains, onAllow
                            <div>
                               <label className="block text-xs font-bold text-slate-500 mb-1 uppercase tracking-wider">URL de l'image (Optionnel)</label>
                               <input value={resFormImageUrl} onChange={e=>setResFormImageUrl(e.target.value)} className="w-full border border-slate-200 p-2.5 rounded-lg focus:ring-2 focus:ring-[#116862] outline-none" placeholder="https://exemple.com/image.jpg"/>
+                           </div>
+                        </div>
+
+                        <div>
+                           <label className="block text-xs font-bold text-slate-500 mb-1 uppercase tracking-wider">Résumé (optionnel)</label>
+                           <textarea
+                              value={resFormSummary}
+                              onChange={e => setResFormSummary(e.target.value.slice(0, RESUME_MAX))}
+                              rows={3}
+                              maxLength={RESUME_MAX}
+                              className="w-full border border-slate-200 p-2.5 rounded-lg focus:ring-2 focus:ring-[#116862] outline-none text-sm"
+                              placeholder="Quelques phrases sur ce que contient la ressource, ce qu'on y apprend, à qui elle sert."
+                           />
+                           <div className="flex justify-between items-center mt-1 gap-3">
+                              <span className="text-[11px] text-slate-400">
+                                 Affiché sous la carte, replié derrière un bouton Voir le résumé.
+                              </span>
+                              <span className={`text-[11px] font-medium shrink-0 ${resFormSummary.length > RESUME_MAX - 60 ? 'text-amber-600' : 'text-slate-400'}`}>
+                                 {resFormSummary.length}/{RESUME_MAX}
+                              </span>
                            </div>
                         </div>
 

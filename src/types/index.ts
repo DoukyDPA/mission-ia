@@ -29,6 +29,10 @@ export interface Resource {
   access: string; 
   file_url?: string; 
   description?: string; 
+  // Résumé court, saisi à la main. Texte brut, dépliable sur la carte
+  // de la page Veille. Distinct de `description`, qui porte le corps
+  // HTML des articles et reste vide pour les vidéos et les liens.
+  summary?: string;
   uploaded_by?: string | number; 
   tags?: string[];
   image_url?: string;

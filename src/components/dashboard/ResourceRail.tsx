@@ -2,8 +2,8 @@
 // Briques d'affichage de la veille, sur le modèle des plateformes de contenu :
 // un bandeau d'affiches en haut, puis des rails horizontaux par catégorie.
 // L'oeil balaie une ligne au lieu de faire défiler une grille sur trois écrans.
-import React, { useRef } from 'react';
-import { BookOpen, PlayCircle, FileText, Link as LinkIcon, ChevronLeft, ChevronRight, Edit, Trash2 } from 'lucide-react';
+import React, { useRef, useState } from 'react';
+import { BookOpen, PlayCircle, FileText, Link as LinkIcon, ChevronLeft, ChevronRight, ChevronDown, Edit, Trash2 } from 'lucide-react';
 import { Resource } from '@/types';
 import { getFirstImageFromHtml, getYoutubeThumbnail, formatDateFr, timeAgoFr, estRecent } from '@/lib/utils';
 
@@ -55,6 +55,36 @@ const ActionsAdmin = ({ resource, isAdmin, onEdit, onDelete }: ActionsProps) => 
         <button onClick={(e) => { e.stopPropagation(); onDelete(resource.id); }} className="p-1.5 bg-white/90 text-slate-600 hover:text-red-600 rounded-md shadow-sm" aria-label="Supprimer">
           <Trash2 size={13} />
         </button>
+      )}
+    </div>
+  );
+};
+
+/* ---------------------------------------------------------------------------
+   RÉSUMÉ DÉPLIABLE : un court texte de présentation, replié par défaut pour
+   ne pas casser l'alignement des rails. Rien ne s'affiche si le champ est
+   vide, donc les ressources publiées avant ce champ restent inchangées.
+   --------------------------------------------------------------------------- */
+export const ResumeDepliable = ({ resume }: { resume?: string | null }) => {
+  const [ouvert, setOuvert] = useState(false);
+  const texte = resume?.trim();
+  if (!texte) return null;
+
+  return (
+    <div className="mt-1.5">
+      <button
+        type="button"
+        onClick={(e) => { e.stopPropagation(); setOuvert(v => !v); }}
+        aria-expanded={ouvert}
+        className="flex items-center gap-1 text-[11px] font-bold text-slate-400 hover:text-[#116862] transition-colors"
+      >
+        <ChevronDown size={12} className={`transition-transform duration-200 ${ouvert ? 'rotate-180' : ''}`} />
+        {ouvert ? 'Masquer le résumé' : 'Voir le résumé'}
+      </button>
+      {ouvert && (
+        <p className="mt-1.5 text-[12px] leading-relaxed text-slate-600 bg-slate-50 border border-slate-200 rounded-lg p-2.5 whitespace-pre-line">
+          {texte}
+        </p>
       )}
     </div>
   );
@@ -150,6 +180,8 @@ export const ResourceTile = ({ resource, onView, isAdmin, onEdit, onDelete }: Ac
           {resource.created_at ? ` · ${timeAgoFr(resource.created_at)}` : ''}
         </span>
       </button>
+
+      <ResumeDepliable resume={resource.summary} />
     </div>
   );
 };
@@ -241,6 +273,8 @@ export const ResourceChip = ({ resource, onView, isAdmin, onEdit, onDelete }: Ac
         )}
       </button>
       <ActionsAdmin resource={resource} isAdmin={isAdmin} onEdit={onEdit} onDelete={onDelete} />
+
+      <ResumeDepliable resume={resource.summary} />
     </div>
   );
 };
