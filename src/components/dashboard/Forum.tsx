@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { MessageSquare, Clock, Plus, ArrowLeft, Send } from 'lucide-react';
+import { MessageSquare, Clock, Plus, ArrowLeft, Send, Loader2 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { User } from '@/types';
 
@@ -17,6 +17,9 @@ export const Forum = ({ user }: ForumProps) => {
   const [newPostTitle, setNewPostTitle] = useState('');
   const [newPostContent, setNewPostContent] = useState('');
   const [newReplyContent, setNewReplyContent] = useState('');
+  // Verrous anti double-soumission (publication et reponse)
+  const [isPosting, setIsPosting] = useState(false);
+  const [isReplying, setIsReplying] = useState(false);
   
   const [isLoading, setIsLoading] = useState(false);
 
@@ -74,7 +77,9 @@ export const Forum = ({ user }: ForumProps) => {
   const handleCreatePost = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newPostTitle.trim() || !newPostContent.trim() || !supabase) return;
-    
+    if (isPosting) return;
+    setIsPosting(true);
+
     try {
       const { error } = await supabase.from('forum_posts').insert({
         title: newPostTitle,
@@ -91,6 +96,8 @@ export const Forum = ({ user }: ForumProps) => {
       fetchPosts();
     } catch (err: any) {
       alert("Erreur lors de la création : " + err.message);
+    } finally {
+      setIsPosting(false);
     }
   };
 
@@ -98,6 +105,8 @@ export const Forum = ({ user }: ForumProps) => {
   const handleCreateReply = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newReplyContent.trim() || !selectedPost || !supabase) return;
+    if (isReplying) return;
+    setIsReplying(true);
 
     try {
       const { error } = await supabase.from('forum_replies').insert({
@@ -114,6 +123,8 @@ export const Forum = ({ user }: ForumProps) => {
       fetchPosts(); 
     } catch (err: any) {
       alert("Erreur lors de la réponse : " + err.message);
+    } finally {
+      setIsReplying(false);
     }
   };
 
@@ -198,9 +209,11 @@ export const Forum = ({ user }: ForumProps) => {
             <div className="flex justify-end">
               <button 
                 type="submit"
-                className="bg-[#116862] text-white px-5 py-2 rounded-lg text-sm font-bold shadow-sm hover:bg-[#0e524d] flex items-center gap-2"
+                disabled={isReplying}
+                aria-busy={isReplying}
+                className="bg-[#116862] text-white px-5 py-2 rounded-lg text-sm font-bold shadow-sm hover:bg-[#0e524d] flex items-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:bg-[#116862]"
               >
-                <Send size={16} /> Envoyer
+                {isReplying ? <><Loader2 size={16} className="animate-spin" /> Envoi en cours...</> : <><Send size={16} /> Envoyer</>}
               </button>
             </div>
           </form>
@@ -264,9 +277,12 @@ export const Forum = ({ user }: ForumProps) => {
               </button>
               <button 
                 type="submit"
-                className="bg-[#116862] text-white px-5 py-2 rounded-lg text-sm font-bold shadow-sm hover:bg-[#0e524d]"
+                disabled={isPosting}
+                aria-busy={isPosting}
+                className="bg-[#116862] text-white px-5 py-2 rounded-lg text-sm font-bold shadow-sm hover:bg-[#0e524d] flex items-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:bg-[#116862]"
               >
-                Publier
+                {isPosting && <Loader2 size={16} className="animate-spin" />}
+                {isPosting ? "Publication en cours..." : "Publier"}
               </button>
             </div>
           </form>

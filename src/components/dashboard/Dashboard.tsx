@@ -1,7 +1,7 @@
 // src/components/dashboard/Dashboard.tsx
 import React, { useState, useEffect, useCallback } from 'react';
 import dynamic from 'next/dynamic';
-import { Plus, X, UploadCloud } from 'lucide-react';
+import { Plus, X, UploadCloud, Loader2 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { User, AllowedDomain, Prompt, Resource, Structure } from '@/types';
 import { Modal } from '@/components/ui/Modal';
@@ -47,6 +47,9 @@ export const Dashboard = ({ user, onLogout, onOpenLegal, allowedDomains, onAllow
   const [modalMode, setModalMode] = useState(''); 
   const [viewingResource, setViewingResource] = useState<Resource | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  // Verrou anti double-soumission : tant que l'enregistrement est en cours,
+  // le bouton est desactive et affiche un indicateur.
+  const [isSubmitting, setIsSubmitting] = useState(false);
   
   const [availableCategories, setAvailableCategories] = useState<string[]>([]);
   const [selectedCategory, setSelectedCategory] = useState('Tous');
@@ -249,13 +252,20 @@ export const Dashboard = ({ user, onLogout, onOpenLegal, allowedDomains, onAllow
          <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
             {/* CHANGEMENT ICI : max-w-lg devient max-w-3xl pour une fenêtre beaucoup plus large */}
             <div className="bg-white rounded-xl shadow-xl w-full max-w-3xl p-6 max-h-[90vh] overflow-y-auto">
-               <div className="flex justify-between items-center mb-6"><h3 className="text-xl font-bold">Édition</h3><button onClick={() => setIsModalOpen(false)}><X className="text-slate-400 hover:text-slate-600" /></button></div>
-               <form onSubmit={(e) => { e.preventDefault(); 
-                  if(modalMode === 'prompt') handleSubmitPrompt();
-                  else if(modalMode === 'resource') handleCreateResource();
-                  else if(modalMode === 'structure') handleSubmitStructure();
-                  else if(modalMode === 'domain') handleCreateDomain();
-                  else if(modalMode === 'user') handleSubmitUser();
+               <div className="flex justify-between items-center mb-6"><h3 className="text-xl font-bold">Édition</h3><button type="button" disabled={isSubmitting} onClick={() => setIsModalOpen(false)}><X className="text-slate-400 hover:text-slate-600 disabled:opacity-40" /></button></div>
+               <form onSubmit={async (e) => {
+                  e.preventDefault();
+                  if (isSubmitting) return;
+                  setIsSubmitting(true);
+                  try {
+                     if(modalMode === 'prompt') await handleSubmitPrompt();
+                     else if(modalMode === 'resource') await handleCreateResource();
+                     else if(modalMode === 'structure') await handleSubmitStructure();
+                     else if(modalMode === 'domain') await handleCreateDomain();
+                     else if(modalMode === 'user') await handleSubmitUser();
+                  } finally {
+                     setIsSubmitting(false);
+                  }
                }} className="space-y-5">
                   
                   {modalMode === 'prompt' && (
@@ -363,7 +373,7 @@ export const Dashboard = ({ user, onLogout, onOpenLegal, allowedDomains, onAllow
                       <p className="text-sm text-slate-500">Formulaire d'ajout de FAQ à venir...</p>
                   )}
 
-                  <button className="bg-[#116862] text-white px-4 py-3 rounded-lg font-bold w-full hover:bg-[#0e524d] transition-colors mt-2 shadow-md">Valider et enregistrer</button>
+                  <button type="submit" disabled={isSubmitting} aria-busy={isSubmitting} className="bg-[#116862] text-white px-4 py-3 rounded-lg font-bold w-full hover:bg-[#0e524d] transition-colors mt-2 shadow-md flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:bg-[#116862]">{isSubmitting && <Loader2 size={18} className="animate-spin" />}{isSubmitting ? "Enregistrement en cours..." : "Valider et enregistrer"}</button>
                </form>
             </div>
          </div>
